@@ -15,7 +15,7 @@ tables:
     # Query/Frequency info
     frequency: daily # (options: hourly, daily, weekly, monthly, yearly)
     query: "select * from climate"
-    batch_size: 5000
+    batch_size: 1000
 
     # destination_details
     gcp_project_id: turing-nature-374608
@@ -23,27 +23,3 @@ tables:
     target_table_name: test_climate_bq
     target_operation: a # (a: for append, t: for truncate)
   
-
-  - name: climate
-    extract: true
-    source: oracle
-    source_type: db  # possible values: db, files, api
-    destination: bq  # 
-
-    # Table Info
-    timestamp_column: tdate
-    timestamp_format: 'YYYY-MM-DD HH24:MI:SS' # (Oracle native timestamps to be used only)
-    incremental_column: tdate
-    incremental_type: timestamp # possible values : id, timestamp
-    incremental_column_format: 'YYYY-MM-DD HH24:MI:SS'
-
-    # Query/Frequency info
-    frequency: daily # (options: hourly, daily, weekly, monthly, yearly)
-    query: "select * from climate"
-    batch_size: 5000
-
-    # destination_details
-    gcp_project_id: turing-nature-374608
-    gcp_bq_dataset_name: test_dataset
-    target_table_name: test_climate_bq
-    target_operation: a # (a: for append, t: for truncate)

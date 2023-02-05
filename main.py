@@ -2,8 +2,15 @@ import os
 import datetime;
 import logging
 import warnings
-
+import logging
+logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+    datefmt='%Y-%m-%d:%H:%M:%S',
+    level=logging.INFO)
+logger = logging.getLogger(__name__)
+import pandas as pd
 from config import Config
+from connection_mapping import Connectors
+from column_matching import ColumnMM
 from extract import Extraction
 from dotenv import load_dotenv
 from load import Loader
@@ -21,6 +28,11 @@ load_dotenv()
 class Main:
     def __init__(self) -> None:
         pass
+
+    def match_columns(self, result_df, target_project_id, target_dataset_name, target_table_name, source, source_schema_definition):
+        cmm = ColumnMM(target_project_id, target_dataset_name, target_table_name, source, source_schema_definition)
+        cmm.match_columns(result_df)
+
 
     def run(self):
 
@@ -43,19 +55,21 @@ class Main:
                     source_schema = extraction_obj.get_schema(table["name"])
                     logging.info(f"Successfully fetched schema details of table `{table['name']}` from {table['source']}")
 
+                    logging.info(f"Starting loading into {table['target_table_name']} at {table['destination']}")
+
+                    loader_obj = Loader(table)
+                    loader_obj.create_schema(source_schema, table["source"])
+                    self.match_columns(result_df.head(), table['gcp_project_id'], table["gcp_bq_dataset_name"], table["target_table_name"], table['source'], source_schema)
+
+                    loader_obj.load(result_df)
+
+                    number_of_records = len(result_df)
+                    last_fetched_value = str(result_df[table["incremental_column"].upper()].max())
+                    load_status = "Success"
+                    logging.info(f"Successfully loaded {number_of_records} records into {table['target_table_name']} at {table['destination']}")
+                    
                     try:
-                        logging.info(f"Starting loading into {table['target_table_name']} at {table['destination']}")
-
-                        loader_obj = Loader(table)
-                        loader_obj.create_schema(source_schema, table["source"])
-
-                        loader_obj.load(result_df)
-
-                        number_of_records = len(result_df)
-                        last_fetched_value = str(result_df[table["incremental_column"].upper()].max())
-                        load_status = "Success"
-                        logging.info(f"Successfully loaded {number_of_records} records into {table['target_table_name']} at {table['destination']}")
-
+                        pass
                     except Exception as e:
                         logging.error(e)
 
@@ -80,11 +94,13 @@ class Main:
                         except:
                             logging.error("Failed to log status in the reporting table")
 
-            # break
+            break
 
 
 if __name__ == "__main__":
     Main().run()
+    # df = pd.read_csv("DailyDelhiClimateTest.csv")
+    # Main().macth_columns("test_climate_bq", "test_climate_bq", df.head())
 
 
 
