@@ -4,7 +4,7 @@ import pandas as pd
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from source.source import SourceConnector
+from db_connectors.connectors import Connector
 from transaction_logger import TLogger
 
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-class OracleDatabaseConnection(SourceConnector):
+class OracleDatabaseConnection(Connector):
 
     def __init__(self, **kwargs) -> None:
         

@@ -1,8 +1,8 @@
-from connection_mapping import Target
+from connection_mapping import Connectors
 
 class Loader:
     def __init__(self, table) -> None:
-        target = Target[table["destination"]].value
+        target = Connectors[table["destination"]].value
         self.target_obj = target(**table)
 
     def create_schema(self, schema_df, source):

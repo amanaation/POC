@@ -15,11 +15,11 @@ from google.api_core.exceptions import Conflict
 from pprint import pprint
 from datatypes import ORACLE2BQ
 import pandas as pd
-
+from db_connectors.connectors import Connectors
 load_dotenv()
 
 
-class BigQuery:
+class BigQuery(Connectors):
     def __init__(self, **kwargs) -> None:
         self.project_id = kwargs['gcp_project_id']
         self.dataset_name = kwargs['gcp_bq_dataset_name']
@@ -40,7 +40,6 @@ class BigQuery:
             logger.info(f"Successfully created dataset : {self.dataset_name}")
         except Conflict:
             logger.info("Dataset already exists")
-
 
     def create_schema(self, schema_df: pd.DataFrame, source: str):
         logger.info(f"Creating DataSet : {self.dataset_name}")
@@ -77,7 +76,6 @@ class BigQuery:
             logger.info(f"Successfully created schema : {self.table_id}")
         except Conflict:
             logger.info("Schema already exists")
-
 
     def save(self, df:pd.DataFrame):
         # print(df.dtypes)

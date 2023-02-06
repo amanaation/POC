@@ -8,14 +8,14 @@ logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
 from transaction_logger import TLogger
-from connection_mapping import Source
+from connection_mapping import Connectors
 
 load_dotenv()
 
 class Extraction:
 
     def __init__(self, table_details) -> None:
-        source = Source[table_details["source"]].value # Source["oracle"]
+        source = Connectors[table_details["source"]].value # Source["oracle"]
         self.connection = source(**self.get_connection_details())
 
 
