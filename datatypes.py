@@ -1,6 +1,5 @@
 from enum import Enum
 
-
 class ORACLE2BQ(Enum):
     """
         Enum class with all the dataype mappings between oracle to Bigquery

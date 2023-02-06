@@ -10,6 +10,10 @@ logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)
 logger = logging.getLogger(__name__)
 
 class TLogger:
+    """
+        Transaction logger class: This class will log and get the latest 
+        transaction/extraction history    
+    """
     def __init__(self) -> None:
 
         logging_table_details = {
@@ -51,8 +55,21 @@ class TLogger:
 
         return None
 
-    def log(self, **kwargs):
-        errors = self.bq_client.insert_rows_json(self.table_id, [kwargs])
+    def log(self, **data_to_be_inserted: dict):
+        """
+            Logs the transaction history in bigquery
+            Parameters
+            -------------
+                data_to_be_inserted : dict
+                    It will contain the data to be inserted in key value format
+                    Example : 
+                        {
+                            "column1" : ["value1.1", "value1.2", "value1.3"],
+                            "column2" : ["value2.1", "value2.2", "value2.3"],
+                            "column3" : ["value3.1", "value3.2", "value3.3"],
+                        }
+        """
+        errors = self.bq_client.insert_rows_json(self.table_id, [data_to_be_inserted])
         if errors:
             logger.error(f"Errors : {errors}")
 

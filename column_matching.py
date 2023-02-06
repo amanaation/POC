@@ -8,11 +8,8 @@ logger = logging.getLogger(__name__)
 import os
 import uuid
 import pandas as pd
-from connection_mapping import Connectors
-from datetime import datetime
 from datatypes import SourceDestinationMapping
 from dotenv import load_dotenv
-from pandas.io import sql
 
 
 load_dotenv()
@@ -21,7 +18,7 @@ class ColumnMM():
     This class is to do adaptive framework by adding new column and 
     filling empty string in deleting columns
     """
-    
+
     def __init__(self, target_project_id, target_dataset_name, target_table_name, source, source_schema):
         """
         This function is to create global variables

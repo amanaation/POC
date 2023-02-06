@@ -88,6 +88,7 @@ class Main:
                         extraction_end_time = datetime.datetime.now()
 
                         try:
+                            # Log transaction history
                             final_status = {"table_name": table["name"],
                                             "extraction_status": load_status,
                                             "number_of_records": number_of_records,
@@ -98,14 +99,13 @@ class Main:
                                             "last_fetched_value": last_fetched_value}
                             TLogger().log(**final_status)
                         except Exception as e:
-                            # raise(e)
                             logging.error("Failed to log status in the reporting table")
 
             break
 
 
-if __name__ == "__main__":
-    Main().run()
+# if __name__ == "__main__":
+#     Main().run()
     # df = pd.read_csv("DailyDelhiClimateTest.csv")
     # Main().macth_columns("test_climate_bq", "test_climate_bq", df.head())
 

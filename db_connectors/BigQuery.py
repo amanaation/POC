@@ -74,7 +74,6 @@ class BigQuery(Connectors):
 
     def create_schema(self, schema_df: pd.DataFrame, source: str) -> None:
         """
-
             Create schema in bigquery if not exists
             Parameters
             ----------
@@ -84,7 +83,6 @@ class BigQuery(Connectors):
             Returns
             ----------
             None
-
         """
         logger.info(f"Creating DataSet : {self.dataset_name}")
         self.create_dataset()
