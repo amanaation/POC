@@ -14,10 +14,27 @@ load_dotenv()
 
 class Extraction:
 
-    def __init__(self, table_details) -> None:
+    """
+        Extraction wrapper class to connect to various databases and extract data from
+    """
+
+    def __init__(self, table_details: dict) -> None:
+        """
+            Parameters
+            ------------
+            table_details: dict
+                Required keys
+                - source : Name of the source 
+                - name: Name of the source table
+                - user:
+                - password:
+                - host:
+                - port:
+                - DB: 
+        """
         source = Connectors[table_details["source"]].value # Source["oracle"]
         self.connection = source(**self.get_connection_details())
-
+        self.table_details = table_details
 
     def get_connection_details(self):
         conn_details = {"user": os.getenv("DBUSER"),
@@ -32,24 +49,15 @@ class Extraction:
     def get_schema(self, table_name):
         return self.connection.get_schema(table_name)
 
-    def extract(self, table_details):
-        # Alternate way implemented in informa
-        # if table_details["source"] == "oracle":
-        #     connection = OracleDatabaseConnection(**self.get_connection_details())
-        # elif table_details["source"] == "redshift":
-        #     connection = Redshift(**self.get_connection_details())
-
-        source = Source[table_details["source"]].value 
-        connection = source(**self.get_connection_details())
-
+    def extract(self):
         logger.info("Fetching last successful extract")
-        last_successfull_extract = TLogger().get_last_successfull_extract(table_details["name"])
+        last_successfull_extract = TLogger().get_last_successfull_extract(self.table_details["name"])
         logger.info(f"Last successful extract : {last_successfull_extract}")
 
 
-        result_df = connection.extract(
+        result_df = self.connection.extract(
                                     last_successfull_extract,
-                                    **table_details)
+                                    **self.table_details)
 
         return result_df
 

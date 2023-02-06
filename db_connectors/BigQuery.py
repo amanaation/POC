@@ -20,18 +20,49 @@ load_dotenv()
 
 
 class BigQuery(Connectors):
-    def __init__(self, **kwargs) -> None:
+    """
+    BigQuery connection class to connect, read, get schema details and write to Bigquery
+
+    Parameters
+    ----------
+        kwargs: dict
+            Required keys:
+                gcp_project_id : GCP project ID to use
+                gcp_bq_dataset_name : GCP dataset name to connect to
+                target_table_name : GCP table name to write/read data from and to        
+
+    """
+
+    def __init__(self, **kwargs):
+        """
+        Constructs all the necessary attributes for the Bigquery class
+
+        Parameters
+        ----------
+            kwargs: dict
+                Required keys:
+                    gcp_project_id : GCP project ID to use
+                    gcp_bq_dataset_name : GCP dataset name to connect to
+                    target_table_name : GCP table name to write/read data from and to        
+        """
         self.project_id = kwargs['gcp_project_id']
         self.dataset_name = kwargs['gcp_bq_dataset_name']
         self.table_name = kwargs['target_table_name']
 
         self.table_id = f"{self.project_id}.{self.dataset_name}.{self.table_name}"
 
+        # Creating BigQuery client
         self.client = bq.Client()
         self.job_config = bq.LoadJobConfig()
 
-    def create_dataset(self):
+    def create_dataset(self) -> None:
+        """
+            Create dataset in bigquery if not exists
 
+            Returns
+            ----------
+            None
+        """
         dataset_id = f"{self.client.project}.{self.dataset_name}"
         dataset = bq.Dataset(dataset_id)
         dataset.location = "US"
@@ -41,7 +72,20 @@ class BigQuery(Connectors):
         except Conflict:
             logger.info("Dataset already exists")
 
-    def create_schema(self, schema_df: pd.DataFrame, source: str):
+    def create_schema(self, schema_df: pd.DataFrame, source: str) -> None:
+        """
+
+            Create schema in bigquery if not exists
+            Parameters
+            ----------
+                schema_df : Source schema details in a dataframe
+                source: Name of the source e.g. oracle/bq
+
+            Returns
+            ----------
+            None
+
+        """
         logger.info(f"Creating DataSet : {self.dataset_name}")
         self.create_dataset()
         logger.info(f"Creating Schema : {self.table_name}")
@@ -69,7 +113,6 @@ class BigQuery(Connectors):
 
                 field = bq.SchemaField(column_name, target_data_type, mode=mode)
                 schema.append(field)
-            # pprint(schema)
 
             table = bq.Table(self.table_id, schema=schema)
             table = self.client.create_table(table)
@@ -77,23 +120,26 @@ class BigQuery(Connectors):
         except Conflict:
             logger.info("Schema already exists")
 
-    def save(self, df:pd.DataFrame):
-        # print(df.dtypes)
+    def get_schema(self, **kwargs)  -> None:
+        pass
+
+    def extract(self, **kwargs)  -> None:
+        pass
+
+    def save(self, df:pd.DataFrame) -> None:
+        """
+            This function writes the dataframe to bigquery
+
+            Parameters
+            ----------
+                df: dataframe to write to bigquery
+
+            Returns
+            --------
+            None
+        """
         job = self.client.load_table_from_dataframe(
             df, self.table_id, job_config=self.job_config
         )
         job.result()
-
-
-# if __name__ == "__main__":
-#     args = {"gcp_project_id": "turing-nature-374608",
-#             "gcp_bq_dataset_name": "test_dataset",
-#             "target_table_name": "test_climate_bq"}
-#     b = BigQuery(**args)
-
-#     df_details = {'COLUMN_NAME': {0: 'TDATE', 1: 'MEANTEMP', 2: 'HUMIDITY', 3: 'WIND_SPEED', 4: 'MEANPRESSURE'}, 'DATA_TYPE': {0: 'DATE', 1: 'VARCHAR2', 2: 'VARCHAR2', 3: 'VARCHAR2', 4: 'VARCHAR2'}, 'NULLABLE': {0: 'Y', 1: 'Y', 2: 'Y', 3: 'Y', 4: 'Y'}, 'IDENTITY_COLUMN': {0: 'NO', 1: 'NO', 2: 'NO', 3: 'NO', 4: 'NO'}}
-#     df = pd.DataFrame(df_details)
-
-#     b.create_schema(df, "oracle")
-
 

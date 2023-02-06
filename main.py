@@ -33,11 +33,14 @@ class Main:
         cmm = ColumnMM(target_project_id, target_dataset_name, target_table_name, source, source_schema_definition)
         cmm.match_columns(result_df)
 
-
     def run(self):
+        """
+            This function is the main function to call and start the extract
+        """
 
         logger.info(f"Reading config files from path {os.getenv('CONFIG_FILES_PATH')}")
 
+        # Reading configs
         configs = Config(os.getenv("CONFIG_FILES_PATH")).get_config()
         for config in configs:
             for table in config["tables"]:
@@ -45,22 +48,25 @@ class Main:
                 if table["extract"]:
                     additional_info = ""
                     extraction_start_time = datetime.datetime.now()
+
+                    # start extract
                     logger.info(f"Started extraction for : {table['name']} at {extraction_start_time}")
                     extraction_obj = Extraction(table)
 
-                    result_df = extraction_obj.extract(table)
+                    result_df = extraction_obj.extract()
                     logging.info(f"Completed extraction for : {table['name']} at {datetime.datetime.now()}")
 
                     logging.info(f"Getting schema details of table `{table['name']}` from {table['source']}")
                     source_schema = extraction_obj.get_schema(table["name"])
                     logging.info(f"Successfully fetched schema details of table `{table['name']}` from {table['source']}")
 
-                    logging.info(f"Starting loading into {table['target_table_name']} at {table['destination']}")
-
-                    loader_obj = Loader(table)
-                    loader_obj.create_schema(source_schema, table["source"])
+                    # check columns discrepancy
                     self.match_columns(result_df.head(), table['gcp_project_id'], table["gcp_bq_dataset_name"], table["target_table_name"], table['source'], source_schema)
 
+                    # start load
+                    logging.info(f"Starting loading into {table['target_table_name']} at {table['destination']}")
+                    loader_obj = Loader(table)
+                    loader_obj.create_schema(source_schema, table["source"])
                     loader_obj.load(result_df)
 
                     number_of_records = len(result_df)
@@ -91,7 +97,8 @@ class Main:
                                             "incremental_column":table["incremental_column"],
                                             "last_fetched_value": last_fetched_value}
                             TLogger().log(**final_status)
-                        except:
+                        except Exception as e:
+                            # raise(e)
                             logging.error("Failed to log status in the reporting table")
 
             break

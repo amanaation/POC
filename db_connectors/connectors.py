@@ -3,7 +3,6 @@ class Connectors:
     def __init__(self) -> None:
         pass
 
-
     def create_schema(self, table): 
         pass
 

@@ -8,10 +8,23 @@ import yaml
 import glob
 
 class Config:
-    def __init__(self, path_to_yaml_files) -> None:
+    """
+        Reads config file from the specified path
+    """
+    def __init__(self, path_to_yaml_files: str):
+        """
+            Reads config file from the specified path
+            Parameters
+            -----------
+                path_to_yaml_files: str
+                    Config yaml file path 
+        """
         self.path = path_to_yaml_files
 
-    def get_config(self):
+    def get_config(self) -> None:
+        """
+            Returns list of configs read from the path
+        """
         files = glob.glob(f"{self.path}/*.yaml") # list of all .yaml files in a directory 
         configs = []
         for file in files:

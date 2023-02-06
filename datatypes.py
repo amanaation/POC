@@ -2,6 +2,9 @@ from enum import Enum
 
 
 class ORACLE2BQ(Enum):
+    """
+        Enum class with all the dataype mappings between oracle to Bigquery
+    """
     VARCHAR2 = "STRING"
     NVARCHAR2 = "STRING"
     CHAR = "STRING"
@@ -21,14 +24,7 @@ class ORACLE2BQ(Enum):
     DATE = "DATETIME"
     TIMESTAMP = "TIMESTAMP"
 
-
-class REDSHIFT2BQ(Enum):
-    VARCHAR2 = "STRING"
-    NVARCHAR2 = "STRING"
-
-class AWS2BQ(Enum):
-    pass
-
-
+class SourceDestinationMapping(Enum):
+    oracle = ORACLE2BQ
 
 

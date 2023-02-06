@@ -6,3 +6,4 @@ from db_connectors.BigQuery import BigQuery
 class Connectors(Enum):
     oracle = OracleDatabaseConnection
     bq = BigQuery
+

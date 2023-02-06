@@ -1,6 +1,6 @@
 import logging
 import os
-from targets.BigQuery import BigQuery
+from db_connectors.BigQuery import BigQuery
 from dotenv import load_dotenv
 load_dotenv()
 
