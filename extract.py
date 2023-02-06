@@ -32,7 +32,7 @@ class Extraction:
                 - port:
                 - DB: 
         """
-        source = Connectors[table_details["source"]].value # Source["oracle"]
+        source = Connectors[table_details["source"]].value # Connectors["oracle"]
         self.connection = source(**self.get_connection_details())
         self.table_details = table_details
 
@@ -53,7 +53,6 @@ class Extraction:
         logger.info("Fetching last successful extract")
         last_successfull_extract = TLogger().get_last_successfull_extract(self.table_details["name"])
         logger.info(f"Last successful extract : {last_successfull_extract}")
-
 
         result_df = self.connection.extract(
                                     last_successfull_extract,

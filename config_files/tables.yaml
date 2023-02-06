@@ -3,12 +3,16 @@ tables:
     extract: true
     source: oracle
     source_type: db  # possible values: db, files, api
-    destination: bq
+    destination: bq      
 
     # Table Info
     timestamp_column: tdate
-    timestamp_format: 'YYYY-MM-DD HH24:MI:SS' # (Oracle native timestamps to be used only)
-    incremental_column: tdate
+    timestamp_format: 'YYYY-MM-DD HH24:MI:SS' # (Oracle native timestamps to be used only)    
+    incremental_column:
+      tdate: 
+        column_type: timestamp
+        column_format: 'YYYY-MM-DD HH24:MI:SS'
+
     incremental_type: timestamp # possible values : id, timestamp
     incremental_column_format: 'YYYY-MM-DD HH24:MI:SS'
 
@@ -16,10 +20,12 @@ tables:
     frequency: daily # (options: hourly, daily, weekly, monthly, yearly)
     query: "select * from climate"
     batch_size: 100
+    use_offset: true
 
     # destination_details
     gcp_project_id: turing-nature-374608
     gcp_bq_dataset_name: test_dataset2
+    target_project_id: turing-nature-374608
+    target_bq_dataset_name: test_dataset2
     target_table_name: test_climate_bq2
     target_operation: a # (a: for append, t: for truncate)
-  

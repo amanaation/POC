@@ -39,7 +39,7 @@ class TLogger:
                 FROM 
                     `{self.table_id}`
                 WHERE 
-                    table_name = "{table}"
+                    source_table_name = "{table}"
                     and extraction_status="Success"
                     and last_fetched_value is Not Null
                 order by extraction_start_time desc limit 1;

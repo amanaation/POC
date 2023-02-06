@@ -7,6 +7,8 @@ from sqlalchemy import create_engine
 from db_connectors.connectors import Connectors
 from transaction_logger import TLogger
 
+
+from pprint import pprint
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
     datefmt='%Y-%m-%d:%H:%M:%S',
     level=logging.INFO)
@@ -42,7 +44,6 @@ class OracleDatabaseConnection(Connectors):
             Returns
             ---------
                 pd.DataFrame: Schema details of source table
-
         """
         schema_details_query = f"""SELECT column_name, data_type, NULLABLE, IDENTITY_COLUMN
                                   FROM USER_TAB_COLUMNS
@@ -72,29 +73,35 @@ class OracleDatabaseConnection(Connectors):
         """
         batch_size = table["batch_size"]
         query = table["query"]
-
         if last_successfull_extract:
-            logger.info("Adding incremental clause to query")
-            if table["incremental_type"] == "timestamp":
+            incremental_columns = table["incremental_column"]
+            incremental_clause = ""
+            for incremental_column_name in incremental_columns:
+                incremental_column = incremental_columns[incremental_column_name]
+                logger.info("Adding incremental clause to query")
+                print("incremental_column : ", incremental_column)
+                if incremental_column["column_type"] == "timestamp":
+                    incremental_clause += f"""  {incremental_column_name} > 
+                                          TO_DATE('{last_successfull_extract['last_fetched_value']}', 
+                                          '{incremental_column["column_format"]}') """
 
-                incremental_clause = f"""{table['incremental_column']} >
-                                    TO_DATE('{last_successfull_extract['last_fetched_value']}', 
-                                    '{table["incremental_column_format"]}')"""
+                elif incremental_column["column_type"] == "id":
+                    incremental_clause += f""" {incremental_column_name} > {last_successfull_extract['last_fetched_value']}"""
 
-            elif table["incremental_type"] == "id":
-                incremental_clause = f""" {table['incremental_column']} > {last_successfull_extract['last_fetched_value']}"""
-            
+                incremental_clause += " and"
+
+            incremental_clause = incremental_clause[:-4]
             if "where" in query.lower():
                 query += f"and   {incremental_clause}"
             else:
                 query += f" where {incremental_clause}"
+
         result_df = pd.DataFrame()
 
         logger.info(f"Running query : {query}")
-
-        logger.info("Executing query...")
+        logger.info("Executing query ...")
         try:
-            if not table["batch_size"]:
+            if table["use_offset"]:
                 result_df = pd.read_sql_query(query, self.connection)
             else:
                 offset = 0
@@ -106,11 +113,28 @@ class OracleDatabaseConnection(Connectors):
                     result = pd.DataFrame(pd_result)
 
                     result_df = pd.concat([result_df, result], ignore_index=True)
+                    offset += batch_size
                     if len(result) < batch_size:
                         break
-                    offset += batch_size
+
         except Exception as e:
             logger.error(e)
         finally:
             return result_df
+
+# if __name__ == "__main__":
+#     import os
+#     from transaction_logger import TLogger
+
+#     conn_details = {"user": os.getenv("DBUSER"),
+#                 "password": os.getenv("PASSWORD"),
+#                 "host": os.getenv("HOST"),
+#                 "port": os.getenv("PORT"),
+#                 "DB": os.getenv("DB")
+#                 }
+
+#     last_successfull_extract = TLogger().get_last_successfull_extract("climate")
+
+#     odb = OracleDatabaseConnection(**conn_details)
+#     odb.extract()
 

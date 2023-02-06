@@ -9,13 +9,12 @@ logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)
 logger = logging.getLogger(__name__)
 import pandas as pd
 from config import Config
-from connection_mapping import Connectors
 from column_matching import ColumnMM
 from extract import Extraction
 from dotenv import load_dotenv
 from load import Loader
 from transaction_logger import TLogger
-
+from transformation import Transformation
 warnings.filterwarnings("ignore")
 
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -49,6 +48,10 @@ class Main:
                     additional_info = ""
                     extraction_start_time = datetime.datetime.now()
 
+                    print()
+
+                    return 0
+
                     # start extract
                     logger.info(f"Started extraction for : {table['name']} at {extraction_start_time}")
                     extraction_obj = Extraction(table)
@@ -56,20 +59,24 @@ class Main:
                     result_df = extraction_obj.extract()
                     logging.info(f"Completed extraction for : {table['name']} at {datetime.datetime.now()}")
 
-                    logging.info(f"Getting schema details of table `{table['name']}` from {table['source']}")
+                    logging.info(f"Getting schema details of source table `{table['name']}` from {table['source']}")
                     source_schema = extraction_obj.get_schema(table["name"])
-                    logging.info(f"Successfully fetched schema details of table `{table['name']}` from {table['source']}")
+                    logging.info(f"Successfully fetched schema details of source table `{table['name']}` from {table['source']}")
+
+                    # Transformation
+                    number_of_records_pushed_to_destination = Transformation().transform(result_df)
 
                     # check columns discrepancy
                     self.match_columns(result_df.head(), table['gcp_project_id'], table["gcp_bq_dataset_name"], table["target_table_name"], table['source'], source_schema)
-
-                    # start load
+                    
+                    # start load    
                     logging.info(f"Starting loading into {table['target_table_name']} at {table['destination']}")
                     loader_obj = Loader(table)
                     loader_obj.create_schema(source_schema, table["source"])
                     loader_obj.load(result_df)
 
-                    number_of_records = len(result_df)
+                    # Transaction Logging
+                    number_of_records_from_source = len(result_df)
                     last_fetched_value = str(result_df[table["incremental_column"].upper()].max())
                     load_status = "Success"
                     logging.info(f"Successfully loaded {number_of_records} records into {table['target_table_name']} at {table['destination']}")
@@ -89,13 +96,15 @@ class Main:
 
                         try:
                             # Log transaction history
-                            final_status = {"table_name": table["name"],
+                            final_status = {"source_table_name": table["name"],
+                                            "destination_table_name": table["target_table_name"],
                                             "extraction_status": load_status,
-                                            "number_of_records": number_of_records,
+                                            "number_of_records_from_source": number_of_records_from_source,
+                                            "number_of_records_pushed_to_destination": number_of_records_pushed_to_destination,
                                             "extraction_start_time": str(extraction_start_time), 
                                             "extraction_end_time": str(extraction_end_time),
                                             "additional_info": str(additional_info),
-                                            "incremental_column":table["incremental_column"],
+                                            "incremental_column": str(table["incremental_column"]),
                                             "last_fetched_value": last_fetched_value}
                             TLogger().log(**final_status)
                         except Exception as e:
@@ -104,8 +113,8 @@ class Main:
             break
 
 
-# if __name__ == "__main__":
-#     Main().run()
+if __name__ == "__main__":
+    Main().run()
     # df = pd.read_csv("DailyDelhiClimateTest.csv")
     # Main().macth_columns("test_climate_bq", "test_climate_bq", df.head())
 

@@ -103,13 +103,8 @@ class BigQuery(Connectors):
                     target_data_type = target_type_mapping[source_data_type].value
                 else:
                     target_data_type = "STRING"
-                
-                if is_nullable == "Y":
-                    mode = "NULLABLE"
-                else: 
-                    mode = "REQUIRED"
 
-                field = bq.SchemaField(column_name, target_data_type, mode=mode)
+                field = bq.SchemaField(column_name, target_data_type)
                 schema.append(field)
 
             table = bq.Table(self.table_id, schema=schema)

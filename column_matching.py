@@ -134,7 +134,7 @@ class ColumnMM():
 
             else:
                 logger.info(f"No fields to be deleted")
-            """
+            # """
 
     def delete_fields(self, deleted_fields, deleted_fields_mapping_details):
         for field in deleted_fields:
@@ -214,7 +214,7 @@ class ColumnMM():
         info_df = pd.DataFrame()
         number_of_rows = len(df.columns)
         info_df["data_type"] = [str(dtype) for dtype in df.dtypes]
-        info_df['column_name'] = df.columns
+        info_df['source_table_name'] = df.columns
         info_df = info_df.reset_index()
         info_df["object_name"] = [self.target_table_name] * number_of_rows
         info_df["inserted_by"] = ['core_framework'] * number_of_rows
@@ -223,7 +223,8 @@ class ColumnMM():
             info_df["object_id"] = [str(uuid.uuid4())] * number_of_rows
         else:
             info_df["object_id"] = [object_id] * number_of_rows
-
+        
+        del info_df["index"]
         info_df.to_gbq(f"{self.configuration_dataset_name}.{self.configuration_table}", self.configuration_project_id, if_exists='append')
         
         logger.info("configuration column mapping table updated")
