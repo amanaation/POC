@@ -1,6 +1,6 @@
 import logging
 import os
-
+import json
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
     datefmt='%Y-%m-%d:%H:%M:%S',
     level=logging.INFO)
@@ -32,7 +32,7 @@ class Extraction:
                 - port:
                 - DB: 
         """
-        source = Connectors[table_details["source"]].value # Connectors["oracle"]
+        source = Connectors[table_details["source"]].value # Connectors["api"]
         self.connection = source(**self.get_connection_details())
         self.table_details = table_details
 
@@ -52,6 +52,8 @@ class Extraction:
     def extract(self):
         logger.info("Fetching last successful extract")
         last_successfull_extract = TLogger().get_last_successfull_extract(self.table_details["name"])
+        if last_successfull_extract:
+            last_successfull_extract = json.loads(last_successfull_extract["last_fetched_value"])
         logger.info(f"Last successful extract : {last_successfull_extract}")
 
         result_df = self.connection.extract(

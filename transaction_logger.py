@@ -32,25 +32,23 @@ class TLogger:
     def get_last_successfull_extract(self, table):
         query_job = self.bq_client.query(
                 f"""
-                SELECT 
-                    extraction_start_time, 
-                    incremental_column, 
-                    last_fetched_value
+                SELECT  
+                    incremental_columns, 
+                    last_fetched_values
                 FROM 
                     `{self.table_id}`
                 WHERE 
                     source_table_name = "{table}"
                     and extraction_status="Success"
-                    and last_fetched_value is Not Null
+                    and last_fetched_values is Not Null
                 order by extraction_start_time desc limit 1;
                 """
             )
         results = query_job.result()
         if results._total_rows:
             for result in results:
-                last_extract = {"extraction_start_time":result["extraction_start_time"],
-                                "incremental_column": result["incremental_column"],
-                                "last_fetched_value": result["last_fetched_value"]}
+                last_extract = {"incremental_column": result["incremental_columns"],
+                                "last_fetched_value": result["last_fetched_values"]}
                 return last_extract
 
         return None

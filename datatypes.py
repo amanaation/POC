@@ -23,6 +23,9 @@ class ORACLE2BQ(Enum):
     DATE = "DATETIME"
     TIMESTAMP = "TIMESTAMP"
 
+class API2BQ(Enum):
+    string = "STRING"
+
 class SourceDestinationMapping(Enum):
     oracle = ORACLE2BQ
 

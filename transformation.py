@@ -4,6 +4,6 @@ class Transformation:
         pass
 
     def transform(self, _table):
-        return len(_table)
+        return _table
 
         

@@ -12,14 +12,16 @@ tables:
       tdate: 
         column_type: timestamp
         column_format: 'YYYY-MM-DD HH24:MI:SS'
-
+      meantemp:
+        column_type: id
+        
     incremental_type: timestamp # possible values : id, timestamp
     incremental_column_format: 'YYYY-MM-DD HH24:MI:SS'
 
     # Query/Frequency info
     frequency: daily # (options: hourly, daily, weekly, monthly, yearly)
     query: "select * from climate"
-    batch_size: 100
+    batch_size: 300
     use_offset: true
 
     # destination_details

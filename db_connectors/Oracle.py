@@ -6,9 +6,8 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from db_connectors.connectors import Connectors
 from transaction_logger import TLogger
-
-
 from pprint import pprint
+
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
     datefmt='%Y-%m-%d:%H:%M:%S',
     level=logging.INFO)
@@ -52,6 +51,97 @@ class OracleDatabaseConnection(Connectors):
         schema_details = pd.read_sql(schema_details_query, self.connection)
         return schema_details
 
+    def get_incremental_clause(self, incremental_columns: dict, last_successfull_extract: dict) -> str:
+        """
+        Creates the inmcremental clause to be added to where clause to fetch latest data
+
+        Parameters
+        ------------
+            incremental_columns : dict
+                Required Keys:
+                    - column_name : [column_details]
+            last_successfull_extract: dict
+                Example value : 
+                    - {
+                        last_fetch_incremental_column1: last_fetch_incremental_value1,
+                        last_fetch_incremental_column2: last_fetch_incremental_value2,
+
+                    }
+        Returns
+        ----------
+        str : incremental_clause
+        """
+        incremental_clause = ""
+        for incremental_column_name in incremental_columns:
+
+            incremental_column_name = incremental_column_name.lower()
+            incremental_column = incremental_columns[incremental_column_name]
+            if incremental_column_name in last_successfull_extract:
+                logger.info("Adding incremental clause to query")
+
+                if incremental_column["column_type"] == "timestamp":
+                    incremental_clause += f"""  {incremental_column_name} > 
+                                        TO_DATE('{last_successfull_extract[incremental_column_name]}', 
+                                        '{incremental_column["column_format"]}') """
+
+                elif incremental_column["column_type"] == "id":
+                    incremental_clause += f""" {incremental_column_name} > {last_successfull_extract[incremental_column_name]}"""
+
+                incremental_clause += " and"
+
+        if incremental_clause:
+            incremental_clause = incremental_clause[:-4]
+        return incremental_clause
+
+    def execute_query(self, sql: str) -> pd.DataFrame:
+        """
+            Executes given query and returns the dataframe
+            Parameters
+            -------------
+                query: str
+                    Query to be execute
+            Returns
+            ----------
+            DataFrame: Query result
+        """
+        result = pd.read_sql(sql, self.connection)
+        return result
+
+    def execute_batch(self, query: str, batch_size: int, incremental_columns: dict) -> pd.DataFrame :
+        """
+        Execute the query and fetch the data in batches using the given batch size
+
+        Parameters
+        ------------
+            query: str
+                Query to be executed
+            batch_size: int
+                size of batch in which the data should be fetched
+            incremental_columns: dict
+                Incremental column details
+
+        Returns
+        -----------
+        pd.DataFrame: Result Dataframe
+        """
+        offset = 0
+        result_df = pd.DataFrame()
+        incremental_columns = list(incremental_columns.keys())
+        incremental_columns = ', '.join(incremental_columns)
+
+        while True:
+            logger.info(f"Fetching rows between {offset} and {offset + batch_size}")
+            updated_query = query + f" order by {incremental_columns} " + f" OFFSET {offset} ROWS FETCH NEXT {batch_size} ROWS ONLY"
+
+            pd_result = self.execute_query(updated_query)
+
+            result_df = pd.concat([result_df, pd_result], ignore_index=True)
+            offset += batch_size
+            if len(pd_result) < batch_size:
+                break
+        
+        return result_df
+
     def extract(self, last_successfull_extract: dict, **table: dict):
         """
             Main Oracle extraction function
@@ -73,24 +163,12 @@ class OracleDatabaseConnection(Connectors):
         """
         batch_size = table["batch_size"]
         query = table["query"]
+        incremental_columns = table["incremental_column"]
+
+        # If there is a last successfull extract then add incremental clause
         if last_successfull_extract:
-            incremental_columns = table["incremental_column"]
-            incremental_clause = ""
-            for incremental_column_name in incremental_columns:
-                incremental_column = incremental_columns[incremental_column_name]
-                logger.info("Adding incremental clause to query")
-                print("incremental_column : ", incremental_column)
-                if incremental_column["column_type"] == "timestamp":
-                    incremental_clause += f"""  {incremental_column_name} > 
-                                          TO_DATE('{last_successfull_extract['last_fetched_value']}', 
-                                          '{incremental_column["column_format"]}') """
+            incremental_clause = self.get_incremental_clause(incremental_columns, last_successfull_extract)
 
-                elif incremental_column["column_type"] == "id":
-                    incremental_clause += f""" {incremental_column_name} > {last_successfull_extract['last_fetched_value']}"""
-
-                incremental_clause += " and"
-
-            incremental_clause = incremental_clause[:-4]
             if "where" in query.lower():
                 query += f"and   {incremental_clause}"
             else:
@@ -99,42 +177,9 @@ class OracleDatabaseConnection(Connectors):
         result_df = pd.DataFrame()
 
         logger.info(f"Running query : {query}")
-        logger.info("Executing query ...")
-        try:
-            if table["use_offset"]:
-                result_df = pd.read_sql_query(query, self.connection)
-            else:
-                offset = 0
-                while True:
-                    logger.info(f"Fetching rows between {offset} and {offset + batch_size}")
-                    updated_query = query + f" order by {table['incremental_column']} " + f" OFFSET {offset} ROWS FETCH NEXT {batch_size} ROWS ONLY"                                 
+        if not table["use_offset"]:
+            result_df = self.execute_query(query)
+        else:
+            result_df = self.execute_batch(query, batch_size, incremental_columns)
 
-                    pd_result = pd.read_sql_query(updated_query, self.connection)
-                    result = pd.DataFrame(pd_result)
-
-                    result_df = pd.concat([result_df, result], ignore_index=True)
-                    offset += batch_size
-                    if len(result) < batch_size:
-                        break
-
-        except Exception as e:
-            logger.error(e)
-        finally:
-            return result_df
-
-# if __name__ == "__main__":
-#     import os
-#     from transaction_logger import TLogger
-
-#     conn_details = {"user": os.getenv("DBUSER"),
-#                 "password": os.getenv("PASSWORD"),
-#                 "host": os.getenv("HOST"),
-#                 "port": os.getenv("PORT"),
-#                 "DB": os.getenv("DB")
-#                 }
-
-#     last_successfull_extract = TLogger().get_last_successfull_extract("climate")
-
-#     odb = OracleDatabaseConnection(**conn_details)
-#     odb.extract()
-
+        return result_df

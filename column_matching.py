@@ -86,8 +86,7 @@ class ColumnMM():
             --------
                 str: Data type a field should have at destination        
         """
-
-        datatype_mapping_obj = SourceDestinationMapping[source]
+        datatype_mapping_obj = SourceDestinationMapping[source].value
 
         destination_datatype = datatype_mapping_obj[field_source_data_type].value
         return destination_datatype
@@ -117,7 +116,7 @@ class ColumnMM():
                 logger.info(f"Following are the new fields added in the dataset: {new_fields}")
                 self.add_new_fields(self.target_table_id, new_fields)
                 logger.info(f"Adding fields {new_fields} to configuration table")
-                self.save_field_mappings(_table[new_fields], field_mappings_df["object_id"][0])
+                self.save_field_mappings(_table[new_fields], field_mappings_df["object_id"][0], field_mappings_df["system_id"][0])
                 logger.info(f"Successfully added fields {new_fields} to configuration table")
             else:
                 logger.info(f"No new fields to be added")
@@ -172,7 +171,7 @@ class ColumnMM():
             None
         """
         source_field_types = self.get_source_data_type(fields)
-
+        source_field_types["COLUMN_NAME"] = source_field_types["COLUMN_NAME"].apply(str.upper)
         for field in fields:
             source_field_type = source_field_types[source_field_types["COLUMN_NAME"] == field]["DATA_TYPE"].to_list()[0]
 
@@ -196,7 +195,7 @@ class ColumnMM():
         df = self.execute(_sql_column,self.configuration_project_id)
         return df
 
-    def save_field_mappings(self,df: pd.DataFrame, object_id: str=None) -> None:
+    def save_field_mappings(self,df: pd.DataFrame, object_id: str=None, system_id=None) -> None:
         """
         This function will insert column metadata into config table if it is a first load
         or if its an existing mapping then add new columns to existing configuration
@@ -214,7 +213,8 @@ class ColumnMM():
         info_df = pd.DataFrame()
         number_of_rows = len(df.columns)
         info_df["data_type"] = [str(dtype) for dtype in df.dtypes]
-        info_df['source_table_name'] = df.columns
+        info_df['column_name'] = df.columns
+        info_df["source_table_name"] = [self.source] * number_of_rows
         info_df = info_df.reset_index()
         info_df["object_name"] = [self.target_table_name] * number_of_rows
         info_df["inserted_by"] = ['core_framework'] * number_of_rows
@@ -223,9 +223,16 @@ class ColumnMM():
             info_df["object_id"] = [str(uuid.uuid4())] * number_of_rows
         else:
             info_df["object_id"] = [object_id] * number_of_rows
-        
+
+        if not system_id:
+            info_df["system_id"] = [str(uuid.uuid4())] * number_of_rows
+        else:
+            info_df["system_id"] = [system_id] * number_of_rows
+
         del info_df["index"]
+
         info_df.to_gbq(f"{self.configuration_dataset_name}.{self.configuration_table}", self.configuration_project_id, if_exists='append')
         
+
         logger.info("configuration column mapping table updated")
 
