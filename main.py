@@ -50,6 +50,7 @@ class Main:
                     additional_info = ""
                     extraction_start_time = datetime.datetime.now()
                     number_of_records_from_source = 0
+                    number_of_records_after_transformation = 0
                     last_fetched_values = {}
                     incremental_columns = []
 
@@ -119,7 +120,7 @@ class Main:
                                             "extraction_status": load_status,
                                             "number_of_records_from_source": number_of_records_from_source,
                                             "number_of_records_pushed_to_destination": number_of_records_after_transformation,
-                                            "extraction_start_time": str(extraction_start_time), 
+                                            "extraction_start_time": str(extraction_start_time),
                                             "extraction_end_time": str(extraction_end_time),
                                             "additional_info": str(additional_info),
                                             "incremental_columns": str(incremental_columns),
