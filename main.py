@@ -50,8 +50,11 @@ class Main:
                     additional_info = ""
                     extraction_start_time = datetime.datetime.now()
                     number_of_records_from_source = 0
+                    number_of_records_after_transformation = 0
                     last_fetched_values = {}
                     incremental_columns = []
+                    if "incremental_column" in table:
+                        incremental_columns = list(table["incremental_column"].keys())
 
                     # ------------------------------ start extract ------------------------------ 
                     logger.info(f"Started extraction for : {table['name']} at {extraction_start_time}")
@@ -59,45 +62,65 @@ class Main:
 
                     logging.info(f"Getting schema details of source table `{table['name']}` from {table['source']}")
                     source_schema = extraction_obj.get_schema(table["name"])
-                    logging.info(f"Following is the source schema details `{table['name']}` from {table['source']}")
+                    logging.info(f"Following is teh source schema details `{table['name']}` from {table['source']}")
                     logger.info(f"\n{source_schema}")
 
-                    result_df = extraction_obj.extract()
-                    number_of_records_from_source = len(result_df)
+                    extraction_func = extraction_obj.extract()
+                    try:
 
-                    logging.info(f"Extracted {number_of_records_from_source} rows from: {table['name']}")
-                    # ------------------------------ End extract ------------------------------ 
-
-                    # ------------------------------ Start Transformation ------------------------------ 
-                    logging.info(f"starting transformation ")
-                    transform = Transformation()
-                    result_df = transform.transform(result_df)
-                    number_of_records_after_transformation = len(result_df)
-                    logging.info(f"Obtained {number_of_records_after_transformation} rows after transformation")
-                    # ------------------------------ End Transformation ------------------------------ 
+                        destination_schema_created = False
+                        while True:
+                            result_df = next(extraction_func)
                     
-                    # ------------------------------ Start Load ------------------------------ 
+                            number_of_records_from_source += len(result_df)
 
-                    if number_of_records_after_transformation:
-                        # check columns discrepancy
-                        self.match_columns(result_df.head(), table['gcp_project_id'], table["gcp_bq_dataset_name"], table["target_table_name"], table['source'], source_schema)
-                        
-                        logging.info(f"Starting loading into {table['target_table_name']} at {table['destination']}")
-                        loader_obj = Loader(table)
-                        loader_obj.create_schema(source_schema, table["source"])
-                        loader_obj.load(result_df)
+                            logging.info(f"Extracted {number_of_records_from_source} rows from: {table['name']}")
+                            # ------------------------------ End extract ------------------------------ 
+
+                            # ------------------------------ Start Transformation ------------------------------ 
+                            logging.info(f"starting transformation {number_of_records_from_source} rows from: {table['name']}")
+                            transform = Transformation()
+                            result_df = transform.transform(result_df)
+                            number_of_records_after_transformation += len(result_df)
+                            # ------------------------------ End Transformation ------------------------------ 
+                            
+                            # ------------------------------ Start Load ------------------------------ 
+
+                            if number_of_records_after_transformation:
+                                # check columns discrepancy
+                                self.match_columns(result_df.head(), table['target_project_id'], table["target_bq_dataset_name"], table["target_table_name"], table['source'], source_schema)
+                                
+                                logging.info(f"Starting loading into {table['target_table_name']} at {table['destination']}")
+                                loader_obj = Loader(table)
+                                if not destination_schema_created:
+                                    loader_obj.create_schema(source_schema, table["source"])
+                                    destination_schema_created = True
+                                loader_obj.load(result_df)
                     # ------------------------------ End Load ------------------------------ 
 
                     # ------------------------------ Start Transaction Logging ------------------------------ 
-                    if number_of_records_after_transformation:
-                        incremental_columns = list(table["incremental_column"].keys())
-                        for incremental_column in table["incremental_column"]:
-                            incremental_column_last_fetched_value = str(result_df[incremental_column.upper()].max())
-                            last_fetched_values[incremental_column] = incremental_column_last_fetched_value
-                        last_fetched_values = json.dumps(last_fetched_values)
+                            if number_of_records_after_transformation:
+                                for incremental_column in incremental_columns:
+                                    incremental_column_last_batch_fetched_value = result_df[incremental_column.upper()].max()
+                                    if incremental_column in last_fetched_values:
+                                        # print("incremental_column : ", incremental_column, last_fetched_values[incremental_column])
+                                        last_fetched_values[incremental_column] = max([last_fetched_values[incremental_column], incremental_column_last_batch_fetched_value])
+                                    else:
+                                        last_fetched_values[incremental_column] = incremental_column_last_batch_fetched_value
 
-                    if not last_fetched_values:
+                                    logger.info(f"Last fetched values : {last_fetched_values}")
+
+                                # logger.info(f"Last fetched values : {last_fetched_values}")
+
+                    except StopIteration:
+                        pass
+
+                    if last_fetched_values:
+                        last_fetched_values = {column: str(last_fetched_values[column]) for column in last_fetched_values}
+                        last_fetched_values = json.dumps(last_fetched_values)
+                    else:
                         last_fetched_values = None
+
                     load_status = "Success"
                     logging.info(f"Successfully loaded {number_of_records_from_source} records into {table['target_table_name']} at {table['destination']}")
                     
@@ -112,24 +135,32 @@ class Main:
                         logging.info(f"Logging transaction history in the reporting table")
                         extraction_end_time = datetime.datetime.now()
 
-                        try:
-                            # Log transaction history
-                            final_status = {"source_table_name": table["name"],
-                                            "destination_table_name": table["target_table_name"],
-                                            "extraction_status": load_status,
-                                            "number_of_records_from_source": number_of_records_from_source,
-                                            "number_of_records_pushed_to_destination": number_of_records_after_transformation,
-                                            "extraction_start_time": str(extraction_start_time), 
-                                            "extraction_end_time": str(extraction_end_time),
-                                            "additional_info": str(additional_info),
-                                            "incremental_columns": str(incremental_columns),
-                                            "last_fetched_values": last_fetched_values}
-                            TLogger().log(**final_status)
-                        except Exception as e:
-                            logging.error("Failed to log status in the reporting table")
+                        # try:
+                        # Log transaction history
+                        final_status = {"source_table_name": table["name"],
+                                        "source": table["source"],
+                                        "source_type": table["source_type"],
+
+                                        "destination_table_name": table["target_table_name"],
+
+                                        "extraction_status": load_status,
+
+                                        "number_of_records_from_source": number_of_records_from_source,
+                                        "number_of_records_pushed_to_destination": number_of_records_after_transformation,
+
+                                        "extraction_start_time": str(extraction_start_time), 
+                                        "extraction_end_time": str(extraction_end_time),
+
+                                        "additional_info": str(additional_info),
+
+                                        "incremental_columns": str(incremental_columns),
+                                        "last_fetched_values": last_fetched_values}
+                        TLogger().log(**final_status)
+                        # except Exception as e:
+                        #     logging.error("Failed to log status in the reporting table")
                     # ------------------------------ Start Transaction Logging ------------------------------ 
 
-            break
+            # break
 
 
 if __name__ == "__main__":

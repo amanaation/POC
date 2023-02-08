@@ -1,0 +1,20 @@
+tables:
+  - name: climate
+    extract: false
+    source: gcs
+    source_type: file  # possible values: db, files, api
+    destination: bq
+
+    # Table Info
+    source_gcs_project_id: "turing-nature-374608"
+    source_gcs_bucket_name: "activision-dev"
+    source_gcs_file_path: ""
+
+    # Query/Frequency info
+    frequency: daily # (options: hourly, daily, weekly, monthly, yearly)
+
+    # destination_details
+    target_project_id: turing-nature-374608
+    target_bq_dataset_name: test_dataset
+    target_table_name: test_climate_bq2
+    target_operation: a # (a: for append, t: for truncate)

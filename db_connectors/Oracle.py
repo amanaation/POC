@@ -1,11 +1,12 @@
 import logging
 import oracledb
 import pandas as pd
+import os
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from db_connectors.connectors import Connectors
-from transaction_logger import TLogger
+# from connectors import Connectors
 from pprint import pprint
 
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -20,19 +21,30 @@ class OracleDatabaseConnection(Connectors):
     def __init__(self, **kwargs) -> None:
         
         logger.info("Creating connection")
+        connection_details = self.get_connection_details()
 
         self.engine = create_engine(f'''oracle+cx_oracle://
-                                        {kwargs["user"]}:{kwargs["password"]}
-                                        @{kwargs['host']}
-                                        /{kwargs['DB']}''')
+                                        {connection_details["user"]}:{connection_details["password"]}
+                                        @{connection_details['host']}
+                                        /{connection_details['DB']}''')
         
         self.connection = oracledb.connect(
-            user=kwargs["user"],
-            password=kwargs["password"],
-            dsn=f"{kwargs['host']}:{kwargs['port']}/{kwargs['DB']}")
+            user=connection_details["user"],
+            password=connection_details["password"],
+            dsn=f"{connection_details['host']}:{connection_details['port']}/{connection_details['DB']}")
 
         self.cursor = self.connection.cursor()
         logger.info("Connection created successfully with source")
+
+    def get_connection_details(self):
+        conn_details = {"user": os.getenv("DBUSER"),
+                "password": os.getenv("PASSWORD"),
+                "host": os.getenv("HOST"),
+                "port": os.getenv("PORT"),
+                "DB": os.getenv("DB")
+                }
+
+        return conn_details
 
     def get_schema(self, table_name: str) -> pd.DataFrame:
         """
@@ -132,15 +144,15 @@ class OracleDatabaseConnection(Connectors):
         while True:
             logger.info(f"Fetching rows between {offset} and {offset + batch_size}")
             updated_query = query + f" order by {incremental_columns} " + f" OFFSET {offset} ROWS FETCH NEXT {batch_size} ROWS ONLY"
-
             pd_result = self.execute_query(updated_query)
+            yield pd_result
 
             result_df = pd.concat([result_df, pd_result], ignore_index=True)
             offset += batch_size
             if len(pd_result) < batch_size:
                 break
         
-        return result_df
+        return 
 
     def extract(self, last_successfull_extract: dict, **table: dict):
         """
@@ -174,12 +186,43 @@ class OracleDatabaseConnection(Connectors):
             else:
                 query += f" where {incremental_clause}"
 
-        result_df = pd.DataFrame()
-
         logger.info(f"Running query : {query}")
         if not table["use_offset"]:
-            result_df = self.execute_query(query)
+            yield self.execute_query(query)
         else:
-            result_df = self.execute_batch(query, batch_size, incremental_columns)
+            try:
+                func = self.execute_batch(query, batch_size, incremental_columns)
+                while True:
+                    yield next(func)
+            except StopIteration:
+                pass
 
-        return result_df
+
+
+# if __name__ == "__main__":
+#     import os
+#     conn_details = {"user": os.getenv("DBUSER"),
+#                     "password": os.getenv("PASSWORD"),
+#                     "host": os.getenv("HOST"),
+#                     "port": os.getenv("PORT"),
+#                     "DB": os.getenv("DB")
+#                     }
+
+#     pprint(conn_details)
+#     last_extract_value = {"tdate": "2022-04-24 00:00:00", "meantemp": "135"}
+#     last_extract_value = None
+
+#     table = {'name': 'climate', 'extract': True, 'source': 'oracle', 'source_type': 'db', 'destination': 'bq', 'timestamp_column': 'tdate', 'timestamp_format': 'YYYY-MM-DD HH24:MI:SS', 'incremental_column': {'tdate': {'column_type': 'timestamp', 'column_format': 'YYYY-MM-DD HH24:MI:SS'}, 'meantemp': {'column_type': 'id'}}, 'incremental_type': 'timestamp', 'incremental_column_format': 'YYYY-MM-DD HH24:MI:SS', 'frequency': 'daily', 'query': 'select * from climate', 'batch_size': 300, 'use_offset': True, 'gcp_project_id': 'turing-nature-374608', 'gcp_bq_dataset_name': 'test_dataset2', 'target_project_id': 'turing-nature-374608', 'target_bq_dataset_name': 'test_dataset2', 'target_table_name': 'test_climate_bq2', 'target_operation': 'a'}
+
+#     odb = OracleDatabaseConnection(**conn_details)
+#     func = odb.extract(last_extract_value, **table)
+
+#     try:
+#         while True:
+
+#             res = next(func)
+#             print(" -------  ", res, "-------")
+#     except StopIteration:
+#         pass
+        
+

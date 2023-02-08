@@ -33,32 +33,25 @@ class Extraction:
                 - DB: 
         """
         source = Connectors[table_details["source"]].value # Connectors["api"]
-        self.connection = source(**self.get_connection_details())
+        self.connection = source(**table_details)
         self.table_details = table_details
-
-    def get_connection_details(self):
-        conn_details = {"user": os.getenv("DBUSER"),
-                "password": os.getenv("PASSWORD"),
-                "host": os.getenv("HOST"),
-                "port": os.getenv("PORT"),
-                "DB": os.getenv("DB")
-                }
-
-        return conn_details
 
     def get_schema(self, table_name):
         return self.connection.get_schema(table_name)
 
     def extract(self):
         logger.info("Fetching last successful extract")
-        last_successfull_extract = TLogger().get_last_successfull_extract(self.table_details["name"])
+        last_successfull_extract = TLogger().get_last_successfull_extract(self.table_details)
         if last_successfull_extract:
             last_successfull_extract = json.loads(last_successfull_extract["last_fetched_value"])
         logger.info(f"Last successful extract : {last_successfull_extract}")
 
-        result_df = self.connection.extract(
+        connection_extract_function = self.connection.extract(
                                     last_successfull_extract,
                                     **self.table_details)
-
-        return result_df
+        try:
+            while True:
+                yield next(connection_extract_function)
+        except StopIteration:
+            pass
 

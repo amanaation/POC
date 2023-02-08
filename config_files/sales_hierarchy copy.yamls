@@ -1,20 +1,15 @@
 tables:
   - name: climate
     extract: true
-    source: oracle
-    source_type: db  # possible values: db, files, api
-    destination: bq      
+    source: gcs
+    source_type: file  # possible values: db, files, api
+    destination: bq
 
     # Table Info
-    timestamp_column: tdate
-    timestamp_format: 'YYYY-MM-DD HH24:MI:SS' # (Oracle native timestamps to be used only)    
-    incremental_column:
-      tdate:
-        column_type: timestamp
-        column_format: 'YYYY-MM-DD HH24:MI:SS'
-      meantemp:
-        column_type: id
-        
+    source_gcs_project_id: "turing-nature-374608"
+    source_gcs_bucket_name: "activision-dev"
+    source_gcs_file_path: ""
+
     incremental_type: timestamp # possible values : id, timestamp
     incremental_column_format: 'YYYY-MM-DD HH24:MI:SS'
 

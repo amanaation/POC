@@ -45,8 +45,8 @@ class BigQuery(Connectors):
                     gcp_bq_dataset_name : GCP dataset name to connect to
                     target_table_name : GCP table name to write/read data from and to        
         """
-        self.project_id = kwargs['gcp_project_id']
-        self.dataset_name = kwargs['gcp_bq_dataset_name']
+        self.project_id = kwargs['target_project_id']
+        self.dataset_name = kwargs['target_bq_dataset_name']
         self.table_name = kwargs['target_table_name']
 
         self.table_id = f"{self.project_id}.{self.dataset_name}.{self.table_name}"

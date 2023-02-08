@@ -17,8 +17,8 @@ class TLogger:
     def __init__(self) -> None:
 
         logging_table_details = {
-            "gcp_project_id": os.getenv('LOGGING_GCP_PROJECT_ID'),
-            "gcp_bq_dataset_name": os.getenv('LOGGING_GCP_PROJECT_DATASET_NAME'),
+            "target_project_id": os.getenv('LOGGING_GCP_PROJECT_ID'),
+            "target_bq_dataset_name": os.getenv('LOGGING_GCP_PROJECT_DATASET_NAME'),
             "target_table_name": os.getenv('LOGGING_TABLE'),
         }
 
@@ -29,7 +29,7 @@ class TLogger:
             os.getenv('LOGGING_TABLE')))
 
 
-    def get_last_successfull_extract(self, table):
+    def get_last_successfull_extract(self, table_details):
         query_job = self.bq_client.query(
                 f"""
                 SELECT  
@@ -38,7 +38,10 @@ class TLogger:
                 FROM 
                     `{self.table_id}`
                 WHERE 
-                    source_table_name = "{table}"
+                    source_table_name = "{table_details["name"]}"
+                    and source = "{table_details["source"]}"
+                    and source_type = "{table_details["source_type"]}"
+
                     and extraction_status="Success"
                     and last_fetched_values is Not Null
                 order by extraction_start_time desc limit 1;
