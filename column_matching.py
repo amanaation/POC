@@ -18,7 +18,7 @@ class ColumnMM():
     filling empty string in deleting columns
     """
 
-    def __init__(self, target_project_id, target_dataset_name, target_table_name, source, source_schema):
+    def __init__(self, table_config_details, source_schema):
         """
         This function is to create global variables
         Parameters:
@@ -27,17 +27,18 @@ class ColumnMM():
             object_name (str) : table name
         """
         self.source_schema = source_schema
+        self.table_config_details = table_config_details
         self.configuration_project_id = os.getenv("CONFIGURATION_PROJECT_ID")
         self.configuration_dataset_name = os.getenv("CONFIGURATION_GCP_PROJECT_DATASET_NAME")
         self.configuration_table = os.getenv("CONFIGURATION_TABLE")
         self.configuration_table_id = f"""{self.configuration_project_id}.{self.configuration_dataset_name}.{self.configuration_table}"""
 
-        self.target_project_id = target_project_id
-        self.target_dataset_name = target_dataset_name
-        self.target_table_name = target_table_name
+        self.target_project_id = table_config_details["target_project_id"]
+        self.target_dataset_name = table_config_details["target_bq_dataset_name"]
+        self.target_table_name = table_config_details["target_table_name"]
 
         self.target_table_id = f"""{self.target_project_id}.{self.target_dataset_name}.{self.target_table_name}"""
-        self.source = source
+        self.source = table_config_details["source"]
 
     def execute(self, sql: str, project_id: str) -> pd.DataFrame:
         """
@@ -190,7 +191,12 @@ class ColumnMM():
         returns:
             df (core.frame.DataFrame) : dataframe with source data
         """
-        _sql_column=f"SELECT * FROM {self.configuration_table_id} where object_name = '{self.target_table_name}'"
+        _sql_column=f"""SELECT * FROM {self.configuration_table_id} 
+                        where 
+                        object_name = '{self.target_table_name}'
+                        and source='{self.source}'
+                        and source_type = '{self.table_config_details['source_type']}'"""
+
         df = self.execute(_sql_column,self.configuration_project_id)
         return df
 

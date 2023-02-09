@@ -29,8 +29,8 @@ class Main:
     def __init__(self) -> None:
         pass
 
-    def match_columns(self, result_df, target_project_id, target_dataset_name, target_table_name, source, source_schema_definition):
-        cmm = ColumnMM(target_project_id, target_dataset_name, target_table_name, source, source_schema_definition)
+    def match_columns(self, result_df, table_config_details, source_schema_definition):
+        cmm = ColumnMM(table_config_details, source_schema_definition)
         cmm.match_columns(result_df)
 
     def run(self):
@@ -60,18 +60,19 @@ class Main:
                     logger.info(f"Started extraction for : {table['name']} at {extraction_start_time}")
                     extraction_obj = Extraction(table)
 
-                    logging.info(f"Getting schema details of source table `{table['name']}` from {table['source']}")
-                    source_schema = extraction_obj.get_schema(table["name"])
-                    logging.info(f"Following is teh source schema details `{table['name']}` from {table['source']}")
-                    logger.info(f"\n{source_schema}")
-
                     extraction_func = extraction_obj.extract()
+
                     try:
 
                         destination_schema_created = False
                         while True:
                             result_df = next(extraction_func)
-                    
+
+                            logging.info(f"Getting schema details of source table `{table['name']}` from {table['source']}")
+                            source_schema = extraction_obj.get_schema(*[table["name"], result_df])
+                            logging.info(f"Following is the source schema details `{table['name']}` from {table['source']}")
+                            logger.info(f"\n{source_schema}")
+
                             number_of_records_from_source += len(result_df)
 
                             logging.info(f"Extracted {number_of_records_from_source} rows from: {table['name']}")
@@ -81,6 +82,7 @@ class Main:
                             logging.info(f"starting transformation {number_of_records_from_source} rows from: {table['name']}")
                             transform = Transformation()
                             result_df = transform.transform(result_df)
+                            # print("result_df :", result_df.head())
                             number_of_records_after_transformation += len(result_df)
                             # ------------------------------ End Transformation ------------------------------ 
                             
@@ -88,11 +90,12 @@ class Main:
 
                             if number_of_records_after_transformation:
                                 # check columns discrepancy
-                                self.match_columns(result_df.head(), table['target_project_id'], table["target_bq_dataset_name"], table["target_table_name"], table['source'], source_schema)
                                 
                                 logging.info(f"Starting loading into {table['target_table_name']} at {table['destination']}")
                                 loader_obj = Loader(table)
                                 if not destination_schema_created:
+                                    self.match_columns(result_df.head(), table, source_schema)
+
                                     loader_obj.create_schema(source_schema, table["source"])
                                     destination_schema_created = True
                                 loader_obj.load(result_df)

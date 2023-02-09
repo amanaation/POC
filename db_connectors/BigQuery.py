@@ -50,6 +50,7 @@ class BigQuery(Connectors):
         self.table_name = kwargs['target_table_name']
 
         self.table_id = f"{self.project_id}.{self.dataset_name}.{self.table_name}"
+        print("self.table_id : ", self.table_id)
 
         # Creating BigQuery client
         self.client = bq.Client()
@@ -91,6 +92,7 @@ class BigQuery(Connectors):
             schema = []
             for index, row in schema_df.iterrows():
                 column_name = row['COLUMN_NAME']
+                column_name = column_name.strip()
                 source_data_type = row['DATA_TYPE']
                 is_nullable = row['NULLABLE']
 

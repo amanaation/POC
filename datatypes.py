@@ -23,8 +23,13 @@ class ORACLE2BQ(Enum):
     DATE = "DATETIME"
     TIMESTAMP = "TIMESTAMP"
 
-class API2BQ(Enum):
-    string = "STRING"
+class GCS2BQ(Enum):
+    str = "STRING"
+    float = "FLOAT64"
+    int = "INT64"
+    date = "DATETIME"
+    timestamp = "TIMESTAMP"
+    boolean = "BOOL"
 
 class SourceDestinationMapping(Enum):
     oracle = ORACLE2BQ

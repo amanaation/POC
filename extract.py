@@ -36,8 +36,8 @@ class Extraction:
         self.connection = source(**table_details)
         self.table_details = table_details
 
-    def get_schema(self, table_name):
-        return self.connection.get_schema(table_name)
+    def get_schema(self, *args):
+        return self.connection.get_schema(*args)
 
     def extract(self):
         logger.info("Fetching last successful extract")

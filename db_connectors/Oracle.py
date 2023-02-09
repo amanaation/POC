@@ -46,7 +46,7 @@ class OracleDatabaseConnection(Connectors):
 
         return conn_details
 
-    def get_schema(self, table_name: str) -> pd.DataFrame:
+    def get_schema(self, *args) -> pd.DataFrame:
         """
             Connects to the source database, and gets the source schema
             Parameters
@@ -56,7 +56,9 @@ class OracleDatabaseConnection(Connectors):
             ---------
                 pd.DataFrame: Schema details of source table
         """
-        schema_details_query = f"""SELECT column_name, data_type, NULLABLE, IDENTITY_COLUMN
+
+        table_name = args[0]
+        schema_details_query = f"""SELECT column_name, data_type, nullable
                                   FROM USER_TAB_COLUMNS
                                   WHERE table_name = '{table_name.upper()}' """
 
