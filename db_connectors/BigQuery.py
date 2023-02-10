@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
 from google.cloud import bigquery as bq
 from google.api_core.exceptions import Conflict
-from pprint import pprint
 from datatypes import ORACLE2BQ
 import pandas as pd
 from db_connectors.connectors import Connectors
@@ -50,11 +49,11 @@ class BigQuery(Connectors):
         self.table_name = kwargs['target_table_name']
 
         self.table_id = f"{self.project_id}.{self.dataset_name}.{self.table_name}"
-        print("self.table_id : ", self.table_id)
 
         # Creating BigQuery client
         self.client = bq.Client()
         self.job_config = bq.LoadJobConfig()
+        self.last_successful_values = {}
 
     def create_dataset(self) -> None:
         """
@@ -94,7 +93,6 @@ class BigQuery(Connectors):
                 column_name = row['COLUMN_NAME']
                 column_name = column_name.strip()
                 source_data_type = row['DATA_TYPE']
-                is_nullable = row['NULLABLE']
 
                 if source.lower() == "oracle":
                     target_type_mapping = ORACLE2BQ

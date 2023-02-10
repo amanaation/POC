@@ -39,6 +39,20 @@ class Extraction:
     def get_schema(self, *args):
         return self.connection.get_schema(*args)
 
+    def handle_extract_error(self, args):
+        return self.connection.handle_extract_error(args)
+
+    def update_last_successful_extract(self):
+        last_successful_extract = self.connection.last_successfull_extract
+        if last_successful_extract:
+            last_successful_extract = {column: str(last_successful_extract[column]) for column in last_successful_extract}
+            last_successful_extract = json.dumps(last_successful_extract)
+        else:
+            last_successful_extract = None
+        
+        print("last_successful_extract : ", last_successful_extract)
+        return last_successful_extract
+
     def extract(self):
         logger.info("Fetching last successful extract")
         last_successfull_extract = TLogger().get_last_successfull_extract(self.table_details)
@@ -53,5 +67,6 @@ class Extraction:
             while True:
                 yield next(connection_extract_function)
         except StopIteration:
+            print("Stopping extraction")
             pass
 

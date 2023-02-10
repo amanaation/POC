@@ -1,5 +1,7 @@
 import logging
 import os
+from google.api_core.exceptions import NotFound
+
 from db_connectors.BigQuery import BigQuery
 from dotenv import load_dotenv
 load_dotenv()
@@ -70,7 +72,15 @@ class TLogger:
                             "column3" : ["value3.1", "value3.2", "value3.3"],
                         }
         """
-        errors = self.bq_client.insert_rows_json(self.table_id, [data_to_be_inserted])
-        if errors:
-            logger.error(f"Errors : {errors}")
+        while True:
+            try:
+                errors = self.bq_client.insert_rows_json(self.table_id, [data_to_be_inserted])
+                logger.info("Successfully logged transaction history")
+
+                if errors:
+                    logger.error(f"Errors : {errors}")
+                break
+            except NotFound:
+                logger.info("Retrying logging transaction history")
+                pass
 

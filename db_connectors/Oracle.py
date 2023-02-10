@@ -2,6 +2,7 @@ import logging
 import oracledb
 import pandas as pd
 import os
+import json
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
@@ -34,6 +35,7 @@ class OracleDatabaseConnection(Connectors):
             dsn=f"{connection_details['host']}:{connection_details['port']}/{connection_details['DB']}")
 
         self.cursor = self.connection.cursor()
+        self.last_successfull_extract = {}
         logger.info("Connection created successfully with source")
 
     def get_connection_details(self):
@@ -156,6 +158,19 @@ class OracleDatabaseConnection(Connectors):
         
         return 
 
+    def handle_extract_error(self):
+        pass
+
+    def update_last_successfull_extract(self, incremental_columns, result_df):
+        print("Updating values")
+        for incremental_column in incremental_columns:
+            incremental_column_last_batch_fetched_value = result_df[incremental_column.upper()].max()
+            if incremental_column in self.last_successfull_extract:
+                # print("incremental_column : ", incremental_column, last_fetched_values[incremental_column])
+                self.last_successfull_extract[incremental_column] = max([self.last_successfull_extract[incremental_column], incremental_column_last_batch_fetched_value])
+            else:
+                self.last_successfull_extract[incremental_column] = incremental_column_last_batch_fetched_value
+
     def extract(self, last_successfull_extract: dict, **table: dict):
         """
             Main Oracle extraction function
@@ -175,6 +190,9 @@ class OracleDatabaseConnection(Connectors):
             --------
                 pd.DataFrame : Extracted dataframe from source table
         """
+        if last_successfull_extract:
+            self.last_successfull_extract = last_successfull_extract
+
         batch_size = table["batch_size"]
         query = table["query"]
         incremental_columns = table["incremental_column"]
@@ -189,18 +207,27 @@ class OracleDatabaseConnection(Connectors):
                 query += f" where {incremental_clause}"
 
         logger.info(f"Running query : {query}")
+        return_args = {"extraction_status": False}
+        
         if not table["use_offset"]:
             yield self.execute_query(query)
         else:
             try:
                 func = self.execute_batch(query, batch_size, incremental_columns)
                 while True:
-                    yield next(func)
+                    return_args["extraction_status"] = True
+                    result_df = next(func)
+                    print("Updating values after extract")
+
+                    self.update_last_successfull_extract(incremental_columns, result_df)
+                    yield result_df, return_args 
             except StopIteration:
                 pass
+            except Exception as e:
+                yield pd.DataFrame(), return_args 
 
 
-
+"""
 # if __name__ == "__main__":
 #     import os
 #     conn_details = {"user": os.getenv("DBUSER"),
@@ -227,4 +254,4 @@ class OracleDatabaseConnection(Connectors):
 #     except StopIteration:
 #         pass
         
-
+"""

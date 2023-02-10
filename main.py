@@ -33,6 +33,9 @@ class Main:
         cmm = ColumnMM(table_config_details, source_schema_definition)
         cmm.match_columns(result_df)
 
+    def complete_transaction_logging(self):
+        pass
+
     def run(self):
         """
             This function is the main function to call and start the extract
@@ -47,12 +50,13 @@ class Main:
 
                 if table["extract"]:
                     # try:
-                    additional_info = ""
+                    incremental_columns = []
+                    result_df = pd.DataFrame()
+                    destination_schema_created = False
                     extraction_start_time = datetime.datetime.now()
                     number_of_records_from_source = 0
                     number_of_records_after_transformation = 0
-                    last_fetched_values = {}
-                    incremental_columns = []
+
                     if "incremental_column" in table:
                         incremental_columns = list(table["incremental_column"].keys())
 
@@ -63,26 +67,25 @@ class Main:
                     extraction_func = extraction_obj.extract()
 
                     try:
-
-                        destination_schema_created = False
                         while True:
-                            result_df = next(extraction_func)
 
-                            logging.info(f"Getting schema details of source table `{table['name']}` from {table['source']}")
-                            source_schema = extraction_obj.get_schema(*[table["name"], result_df])
-                            logging.info(f"Following is the source schema details `{table['name']}` from {table['source']}")
-                            logger.info(f"\n{source_schema}")
+                            additional_info = ""
+                            last_fetched_values = {}
+
+                            result_df, return_args = next(extraction_func)
+                            if not return_args["extraction_status"]:
+                                extraction_obj.handle_extract_error(return_args)
+                                continue
 
                             number_of_records_from_source += len(result_df)
 
-                            logging.info(f"Extracted {number_of_records_from_source} rows from: {table['name']}")
+                            logging.info(f"Extracted {len(result_df)} rows from: {table['name']}")
                             # ------------------------------ End extract ------------------------------ 
 
                             # ------------------------------ Start Transformation ------------------------------ 
-                            logging.info(f"starting transformation {number_of_records_from_source} rows from: {table['name']}")
+                            logging.info(f"starting transformation of {len(result_df)} rows from: {table['name']}")
                             transform = Transformation()
                             result_df = transform.transform(result_df)
-                            # print("result_df :", result_df.head())
                             number_of_records_after_transformation += len(result_df)
                             # ------------------------------ End Transformation ------------------------------ 
                             
@@ -90,42 +93,33 @@ class Main:
 
                             if number_of_records_after_transformation:
                                 # check columns discrepancy
-                                
                                 logging.info(f"Starting loading into {table['target_table_name']} at {table['destination']}")
                                 loader_obj = Loader(table)
                                 if not destination_schema_created:
+                                    logging.info(f"Getting schema details of source table `{table['name']}` from {table['source']}")
+                                    source_schema = extraction_obj.get_schema(*[table["name"], result_df])
+                                    logging.info(f"Following is the source schema details `{table['name']}` from {table['source']}")
+                                    logger.info(f"\n{source_schema}")
+
                                     self.match_columns(result_df.head(), table, source_schema)
 
                                     loader_obj.create_schema(source_schema, table["source"])
                                     destination_schema_created = True
                                 loader_obj.load(result_df)
+                                if return_args:
+                                    pass
                     # ------------------------------ End Load ------------------------------ 
 
                     # ------------------------------ Start Transaction Logging ------------------------------ 
-                            if number_of_records_after_transformation:
-                                for incremental_column in incremental_columns:
-                                    incremental_column_last_batch_fetched_value = result_df[incremental_column.upper()].max()
-                                    if incremental_column in last_fetched_values:
-                                        # print("incremental_column : ", incremental_column, last_fetched_values[incremental_column])
-                                        last_fetched_values[incremental_column] = max([last_fetched_values[incremental_column], incremental_column_last_batch_fetched_value])
-                                    else:
-                                        last_fetched_values[incremental_column] = incremental_column_last_batch_fetched_value
-
-                                    logger.info(f"Last fetched values : {last_fetched_values}")
-
-                                # logger.info(f"Last fetched values : {last_fetched_values}")
 
                     except StopIteration:
                         pass
 
-                    if last_fetched_values:
-                        last_fetched_values = {column: str(last_fetched_values[column]) for column in last_fetched_values}
-                        last_fetched_values = json.dumps(last_fetched_values)
-                    else:
-                        last_fetched_values = None
+                    last_fetched_values = extraction_obj.update_last_successful_extract()
+                    logger.info(f"Last fetched values : {last_fetched_values}")
 
                     load_status = "Success"
-                    logging.info(f"Successfully loaded {number_of_records_from_source} records into {table['target_table_name']} at {table['destination']}")
+                    logging.info(f"Successfully loaded {len(result_df)} records into {table['target_table_name']} at {table['destination']}")
                     
                     try:
                         pass
