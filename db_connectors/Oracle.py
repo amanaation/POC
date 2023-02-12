@@ -2,12 +2,12 @@ import logging
 import oracledb
 import pandas as pd
 import os
-import json
+import warnings
+warnings.filterwarnings("ignore")
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-# from db_connectors.connectors import Connectors
-from connectors import Connectors
+from db_connectors.connectors import Connectors
 from pprint import pprint
 
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -138,33 +138,37 @@ class OracleDatabaseConnection(Connectors):
         if incremental_clause:
             dynamic_limit_query = """select TRUNC({}, '{}') as group_by_timestamp, 
                                     count(*) as row_count from {} where {} group by TRUNC({}, '{}')  
-                                    order by group_by_timestamp desc; """
+                                    order by group_by_timestamp desc"""
             dynamic_limit_query = dynamic_limit_query.format(group_by_column, group_by_format, table_name, incremental_clause, group_by_column,  group_by_format)
 
         else:
             dynamic_limit_query = """select TRUNC({}, '{}') as group_by_timestamp, 
                                     count(*) as row_count from {} group by TRUNC({}, '{}')  
-                                    order by group_by_timestamp desc; """
+                                    order by group_by_timestamp desc"""
 
             dynamic_limit_query = dynamic_limit_query.format(group_by_column, group_by_format, table_name, group_by_column,  group_by_format)
 
         return dynamic_limit_query
 
     def get_dynamic_limit(self, incremental_clause, table_name, batch_size, group_by_column, group_by_format):
-        group_by_formats = ["hh", "dd", "mm", "yy"]
+        group_by_formats = ["hh", "dd", "iw", "mm", "yy"]
+        group_by_formats_description = {"hh": "Hourly", "dd": "Daily", "iw": "Weekly","mm": "Monthly", "yy": "Yearly"}
 
         for i in range(len(group_by_formats)):
             group_by_format = group_by_formats[i]
             dynamic_limit_query = self.create_dynamic_limit_query( incremental_clause, table_name, batch_size, group_by_column, group_by_format)
 
             result = self.execute_query(dynamic_limit_query)
-            if result["group_by_timestamp"][0] >= batch_size:
+            if result["ROW_COUNT"].max() >= batch_size:
                 if i:
                     i = i-1
                 break
         group_by_format = group_by_formats[i]
+        logger.info(f"Extracting Data by grouping it in {group_by_formats_description[group_by_format]} batches")
+
         final_dynamic_limit_query = self.create_dynamic_limit_query( incremental_clause, table_name, batch_size, group_by_column, group_by_format)
         result = self.execute_query(final_dynamic_limit_query)
+        logger.info(f"Created {len(result)} batches")
 
         return result
 
@@ -177,38 +181,49 @@ class OracleDatabaseConnection(Connectors):
                         group_by_column, 
                         group_by_format) -> pd.DataFrame :
 
-        offset = 0
-        result_df = pd.DataFrame()
         incremental_columns = list(incremental_columns.keys())
         incremental_columns = ', '.join(incremental_columns)
-        print("incremental_columns : ", incremental_columns)
 
-        yield self.get_dynamic_limit(incremental_clause, table_name, batch_size, group_by_column, group_by_format)
-        # while True:
-        #     logger.info(f"Fetching rows between {offset} and {offset + batch_size}")
-        #     updated_query = query + f" order by {incremental_columns} " + f" OFFSET {offset} ROWS FETCH NEXT {batch_size} ROWS ONLY"
-        #     pd_result = self.execute_query(updated_query)
-        #     yield pd_result
-
-        #     result_df = pd.concat([result_df, pd_result], ignore_index=True)
-        #     offset += batch_size
-        #     if len(pd_result) < batch_size:
-        #         break
+        dynamic_limit = self.get_dynamic_limit(incremental_clause, table_name, batch_size, group_by_column, group_by_format)
+        if incremental_clause:
+            if "where "in query.lower():
+                query += f" and {incremental_clause} "
+            else:
+                query += f" where {incremental_clause}  "
         
-        # return 
+        for index, row in dynamic_limit.iterrows():
+            group_by_timestamp = row[0]
+            next_group_by_timestamp = ""
+
+            if index:
+                next_group_by_timestamp = dynamic_limit.iloc[[index-1]]["GROUP_BY_TIMESTAMP"].to_list()[0]
+
+            updated_query = query
+            if "where "in query.lower():
+                updated_query += f" and {group_by_column} >= TO_DATE('{group_by_timestamp}', '{group_by_format}') "
+            else:
+                updated_query += f" where  {group_by_column} >= TO_DATE('{group_by_timestamp}', '{group_by_format}') "
+
+            if next_group_by_timestamp:
+                updated_query += f" and {group_by_column} < TO_DATE('{next_group_by_timestamp}', '{group_by_format}') "
+
+            logger.info(f"Running query : {updated_query}")
+            logger.info(f"Fetched data for {group_by_timestamp}")
+
+            yield self.execute_query(updated_query)
 
     def handle_extract_error(self):
         pass
 
-    def update_last_successfull_extract(self, incremental_columns, result_df):
+    def update_last_successfull_extract(self, incremental_columns, result_df) -> None:
         print("Updating values")
         for incremental_column in incremental_columns:
             incremental_column_last_batch_fetched_value = result_df[incremental_column.upper()].max()
             if incremental_column in self.last_successfull_extract:
-                # print("incremental_column : ", incremental_column, last_fetched_values[incremental_column])
-                self.last_successfull_extract[incremental_column] = max([self.last_successfull_extract[incremental_column], incremental_column_last_batch_fetched_value])
+                self.last_successfull_extract[incremental_column] = max(self.last_successfull_extract[incremental_column], incremental_column_last_batch_fetched_value)
             else:
                 self.last_successfull_extract[incremental_column] = incremental_column_last_batch_fetched_value
+        logger.info(f"Updated last successful extract : {self.last_successfull_extract}")
 
     def extract(self, last_successfull_extract: dict, **table: dict):
         """
@@ -247,30 +262,44 @@ class OracleDatabaseConnection(Connectors):
             else:
                 query += f" where {incremental_clause}"
 
-        logger.info(f"Running query : {query}")
         return_args = {"extraction_status": False}
         
-        if not table["use_offset"]:
-            yield self.execute_query(query)
-        else:
-            # try:
-                print("batch execution")
-                func = self.execute_batches(query, incremental_clause, table["name"], batch_size, incremental_columns, table["grouby_column"], table["grouby_format"])
-                while True:
-                    return_args["extraction_status"] = True
-                    print("batch execution------")
 
-                    result_df = next(func)
+        func = self.execute_batches(query, incremental_clause, table["name"], batch_size, incremental_columns, table["grouby_column"], table["grouby_format"])
+        while True:
+            try:
+                result_df = next(func)
+                return_args["extraction_status"] = True
+                self.update_last_successfull_extract(incremental_columns, result_df)
 
-                    self.update_last_successfull_extract(incremental_columns, result_df)
-                    yield result_df, return_args 
+                yield result_df, return_args
+            except StopIteration:
+                break
+            except Exception as e:
+                yield pd.DataFrame(), return_args 
+                
+        """
+        # if not table["use_offset"]:
+        #     yield self.execute_query(query)
+        # else:
+        #     # try:
+        #         print("batch execution")
+        #         func = self.execute_batches(query, incremental_clause, table["name"], batch_size, incremental_columns, table["grouby_column"], table["grouby_format"])
+        #         while True:
+        #             return_args["extraction_status"] = True
+        #             print("batch execution------")
+
+        #             result_df = next(func)
+
+        #             self.update_last_successfull_extract(incremental_columns, result_df)
+        #             yield result_df, return_args 
             # except StopIteration:
             #     pass
             # except Exception as e:
             #     yield pd.DataFrame(), return_args 
+        """
 
-
-# """
+"""
 if __name__ == "__main__":
     import os
     conn_details = {"user": os.getenv("DBUSER"),
@@ -293,7 +322,7 @@ if __name__ == "__main__":
             'timestamp_format': 'YYYY-MM-DD HH24:MI:SS', 
 
             'grouby_column': 'tdate', 
-            'grouby_format': 'YY', 
+            'grouby_format': 'YYYY-MM-DD HH24:MI:SS', 
 
             'incremental_column': {'tdate': {'column_type': 'timestamp', 'column_format': 'YYYY-MM-DD HH24:MI:SS'}, 'meantemp': {'column_type': 'id'}}, 
             'incremental_type': 'timestamp', 
@@ -314,7 +343,7 @@ if __name__ == "__main__":
     # odb.execute_batch("select * from climate", 500, [{"tdate": {"column_type":"timestamp", "column_format": 'YYYY-MM-DD HH24:MI:SS'}}], "tdate", "DD")
     # odb.test()
     # odb.execute_batch("select * from climate", 500, [{"tdate": {"column_type":"timestamp", "column_format": 'YYYY-MM-DD HH24:MI:SS'}}], "tdate", "DD")
-    next(odb.extract(last_extract_value, **table))
+    print(next(odb.extract(last_extract_value, **table)))
     print("-----------")
 
 #     func = odb.extract(last_extract_value, **table)

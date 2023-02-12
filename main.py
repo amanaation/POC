@@ -106,6 +106,8 @@ class Main:
                                     loader_obj.create_schema(source_schema, table["source"])
                                     destination_schema_created = True
                                 loader_obj.load(result_df)
+                                logging.info(f"Successfully loaded {len(result_df)} rows in {table['target_table_name']} at {table['destination']}")
+
                                 if return_args:
                                     pass
                     # ------------------------------ End Load ------------------------------ 

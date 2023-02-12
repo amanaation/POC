@@ -1,11 +1,14 @@
 tables:
   - name: climate
-    extract: false
+    extract: true
     source: oracle
     source_type: db  # possible values: db, files, api
     destination: bq      
 
     # Table Info
+    grouby_column: 'tdate'
+    grouby_format: 'YYYY-MM-DD HH24:MI:SS'
+
     timestamp_column: tdate
     timestamp_format: 'YYYY-MM-DD HH24:MI:SS' # (Oracle native timestamps to be used only)    
     incremental_column:
@@ -20,8 +23,8 @@ tables:
 
     # Query/Frequency info
     frequency: daily # (options: hourly, daily, weekly, monthly, yearly)
-    query: "select * from climate"
-    batch_size: 300
+    query: "select * from climate "
+    batch_size: 10000
     use_offset: true
 
     # destination_details

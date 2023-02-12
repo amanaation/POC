@@ -1,6 +1,6 @@
 tables:
   - name: climate
-    extract: true
+    extract: false
     source: gcs
     source_type: file  # possible values: db, files, api
     destination: bq
