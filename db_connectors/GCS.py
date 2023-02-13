@@ -1,3 +1,4 @@
+import ciso8601
 import csv
 import logging
 import pandas as pd
@@ -12,8 +13,8 @@ logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)
     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from db_connectors.connectors import Connectors
-# from connectors import Connectors
+# from db_connectors.connectors import Connectors
+from connectors import Connectors
 from google.cloud import storage
 from google.cloud.storage.bucket import Bucket
 from io import StringIO
@@ -137,32 +138,37 @@ class GCS(Connectors):
     def handle_extract_error(self, args):
         self.move_blob(self.bucket_name, args["file_name"], os.getenv("GCS_ERROR_BUCKET_NAME"), args["file_name"])
 
-    def update_last_successfull_extract(self, file_path):
-        if "/" in file_path:
-            directory_path = file_path.split("/")[0]
+    def update_last_successfull_extract(self, max_timestamp):
+        new_timestamp = ciso8601.parse_datetime(new_timestamp)
+
+        if "max_timestamp" not in self.last_successfull_extract:
+            self.last_successfull_extract["max_timestamp"] = max_timestamp
 
         else:
-            directory_path = ""
-        if not self.last_successfull_extract:
-            self.last_successfull_extract["file_paths"] = []
-
-        print(self.last_successfull_extract)
-        if directory_path:
-            self.last_successfull_extract["file_paths"].append(directory_path)
+            last_max_timestamp = ciso8601.parse_datetime(self.last_successfull_extract["max_timestamp"])
+            self.last_successfull_extract["max_timestamp"] = max(new_timestamp, last_max_timestamp)
 
     def extract(self, last_successfull_extract, **kwargs):
+
+        return_args = {"extraction_status": False, "file_name": blob.name}
+
         if last_successfull_extract:
             self.last_successfull_extract = last_successfull_extract
 
         blobs = self.bucket.list_blobs(prefix=self.file_path)
         for blob in blobs:
-            return_args = {"extraction_status": False, "file_name": blob.name}
+
+            blob_time_created = ciso8601.parse_datetime(blob.timeCreated)
+            if "max_timestamp" in self.last_successfull_extract:
+                last_max_timestamp = ciso8601.parse_datetime(self.last_successfull_extract["max_timestamp"])
+            else:
+                last_max_timestamp = blob_time_created
 
             # try:
-            if not blob.name.endswith("/"):
+            if not blob.name.endswith("/") and blob_time_created >= last_max_timestamp:
                 file_data = self.read_file(blob)
                 return_args["extraction_status"] = True
-                self.update_last_successfull_extract(blob.name)
+                self.update_last_successfull_extract(blob.timeCreated)
                 yield file_data, return_args
             # except Exception as e:
             #     logger.info(f"Error occured while reading file {blob.name}")
@@ -173,12 +179,13 @@ class GCS(Connectors):
         pass
 
 
-# if __name__ == "__main__":
-#     bucket_details = {"source_gcs_bucket_name": "activision-dev",
-#         "source_gcs_file_path": "2023-02-08/"}
+if __name__ == "__main__":
+    bucket_details = {"source_gcs_bucket_name": "activision-dev",
+        "source_gcs_file_path": "2023-02-08/"}
 
-#     df = pd.read_csv("/Users/amanmishra/Desktop/tredence/Python framework/DailyDelhiClimateTest.csv")    
+    df = pd.read_csv("/Users/amanmishra/Desktop/tredence/Python framework/DailyDelhiClimateTest.csv")    
 
-
-#     gcs = GCS(**bucket_details)
-#     print(gcs.get_schema("climate", df.head()))
+    from pprint import pprint
+    gcs = GCS(**bucket_details)
+    next(gcs.extract({}))
+    # print(gcs.get_schema("climate", df.head()))
