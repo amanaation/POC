@@ -263,7 +263,6 @@ class OracleDatabaseConnection(Connectors):
                 query += f" where {incremental_clause}"
 
         return_args = {"extraction_status": False}
-        
 
         func = self.execute_batches(query, incremental_clause, table["name"], batch_size, incremental_columns, table["grouby_column"], table["grouby_format"])
         while True:
@@ -277,83 +276,5 @@ class OracleDatabaseConnection(Connectors):
                 break
             except Exception as e:
                 yield pd.DataFrame(), return_args 
-                
-        """
-        # if not table["use_offset"]:
-        #     yield self.execute_query(query)
-        # else:
-        #     # try:
-        #         print("batch execution")
-        #         func = self.execute_batches(query, incremental_clause, table["name"], batch_size, incremental_columns, table["grouby_column"], table["grouby_format"])
-        #         while True:
-        #             return_args["extraction_status"] = True
-        #             print("batch execution------")
 
-        #             result_df = next(func)
 
-        #             self.update_last_successfull_extract(incremental_columns, result_df)
-        #             yield result_df, return_args 
-            # except StopIteration:
-            #     pass
-            # except Exception as e:
-            #     yield pd.DataFrame(), return_args 
-        """
-
-"""
-if __name__ == "__main__":
-    import os
-    conn_details = {"user": os.getenv("DBUSER"),
-                    "password": os.getenv("PASSWORD"),
-                    "host": os.getenv("HOST"),
-                    "port": os.getenv("PORT"),
-                    "DB": os.getenv("DB")
-                    }
-
-    pprint(conn_details)
-    # last_extract_value = {"tdate": "2022-04-24 00:00:00", "meantemp": "135"}
-    last_extract_value = None
-
-    table = {'name': 'climate', 
-            'extract': True, 
-            'source': 'oracle', 
-            'source_type': 'db', 
-            'destination': 'bq', 
-            'timestamp_column': 'tdate', 
-            'timestamp_format': 'YYYY-MM-DD HH24:MI:SS', 
-
-            'grouby_column': 'tdate', 
-            'grouby_format': 'YYYY-MM-DD HH24:MI:SS', 
-
-            'incremental_column': {'tdate': {'column_type': 'timestamp', 'column_format': 'YYYY-MM-DD HH24:MI:SS'}, 'meantemp': {'column_type': 'id'}}, 
-            'incremental_type': 'timestamp', 
-            'incremental_column_format': 'YYYY-MM-DD HH24:MI:SS', 
-            'frequency': 'daily', 
-            'query': 'select * from climate', 
-            'batch_size': 300, 
-            'use_offset': True, 
-            'gcp_project_id': 'turing-nature-374608', 
-            'gcp_bq_dataset_name': 'test_dataset2', 
-            'target_project_id': 'turing-nature-374608', 
-            'target_bq_dataset_name': 'test_dataset2', 
-            'target_table_name': 'test_climate_bq2', 
-            'target_operation': 'a'}
-
-    odb = OracleDatabaseConnection(**conn_details)
-
-    # odb.execute_batch("select * from climate", 500, [{"tdate": {"column_type":"timestamp", "column_format": 'YYYY-MM-DD HH24:MI:SS'}}], "tdate", "DD")
-    # odb.test()
-    # odb.execute_batch("select * from climate", 500, [{"tdate": {"column_type":"timestamp", "column_format": 'YYYY-MM-DD HH24:MI:SS'}}], "tdate", "DD")
-    print(next(odb.extract(last_extract_value, **table)))
-    print("-----------")
-
-#     func = odb.extract(last_extract_value, **table)
-
-#     try:
-#         while True:
-
-#             res = next(func)
-#             print(" -------  ", res, "-------")
-#     except StopIteration:
-#         pass
-        
-# """
