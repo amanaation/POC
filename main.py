@@ -61,7 +61,9 @@ class Main:
                         incremental_columns = list(table["incremental_column"].keys())
 
                     # ------------------------------ start extract ------------------------------ 
-                    logger.info(f"Started extraction for : {table['name']} at {extraction_start_time}")
+                    print("#"*140)
+                    logger.info(f"       Starting ETL for : {table['name']} at {extraction_start_time}       ")
+                    print("#"*140)
                     extraction_obj = Extraction(table)
 
                     extraction_func = extraction_obj.extract()
@@ -134,32 +136,34 @@ class Main:
                         logging.info(f"Logging transaction history in the reporting table")
                         extraction_end_time = datetime.datetime.now()
 
-                        # try:
-                        # Log transaction history
-                        final_status = {"source_table_name": table["name"],
-                                        "source": table["source"],
-                                        "source_type": table["source_type"],
+                        try:
+                            # Log transaction history
+                            final_status = {"source_table_name": table["name"],
+                                            "source": table["source"],
+                                            "source_type": table["source_type"],
 
-                                        "destination_table_name": table["target_table_name"],
+                                            "destination_table_name": table["target_table_name"],
 
-                                        "extraction_status": load_status,
+                                            "extraction_status": load_status,
 
-                                        "number_of_records_from_source": number_of_records_from_source,
-                                        "number_of_records_pushed_to_destination": number_of_records_after_transformation,
+                                            "number_of_records_from_source": number_of_records_from_source,
+                                            "number_of_records_pushed_to_destination": number_of_records_after_transformation,
 
-                                        "extraction_start_time": str(extraction_start_time), 
-                                        "extraction_end_time": str(extraction_end_time),
+                                            "extraction_start_time": str(extraction_start_time), 
+                                            "extraction_end_time": str(extraction_end_time),
 
-                                        "additional_info": str(additional_info),
+                                            "additional_info": str(additional_info),
 
-                                        "incremental_columns": str(incremental_columns),
-                                        "last_fetched_values": last_fetched_values}
-                        TLogger().log(**final_status)
-                        # except Exception as e:
-                        #     logging.error("Failed to log status in the reporting table")
-                    # ------------------------------ Start Transaction Logging ------------------------------ 
+                                            "incremental_columns": str(incremental_columns),
+                                            "last_fetched_values": last_fetched_values}
+                            TLogger().log(**final_status)
+                        except Exception as e:
+                            logging.error("Failed to log status in the reporting table")
+                    # ------------------------------ End Transaction Logging ------------------------------ 
+                    print("#"*140)
+                    logger.info(f"       Completed ETL for : {table['name']} at {extraction_start_time}       ")
+                    print("#"*140)
 
-            # break
 
 
 if __name__ == "__main__":

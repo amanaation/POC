@@ -14,7 +14,6 @@ logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)
 logger = logging.getLogger(__name__)
 
 from db_connectors.connectors import Connectors
-# from connectors import Connectors
 from google.cloud import storage
 from google.cloud.storage.bucket import Bucket
 from io import StringIO
