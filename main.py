@@ -56,6 +56,7 @@ class Main:
                     extraction_start_time = datetime.datetime.now()
                     number_of_records_from_source = 0
                     number_of_records_after_transformation = 0
+                    last_fetched_values = {}
 
                     if "incremental_column" in table:
                         incremental_columns = list(table["incremental_column"].keys())
@@ -72,7 +73,6 @@ class Main:
                         while True:
 
                             additional_info = ""
-                            last_fetched_values = {}
 
                             result_df, return_args = next(extraction_func)
                             if not return_args["extraction_status"]:
@@ -107,7 +107,7 @@ class Main:
 
                                     loader_obj.create_schema(source_schema, table["source"])
                                     destination_schema_created = True
-                                loader_obj.load(result_df)
+                                # loader_obj.load(result_df)
                                 logging.info(f"Successfully loaded {len(result_df)} rows in {table['target_table_name']} at {table['destination']}")
 
                                 if return_args:
@@ -119,7 +119,9 @@ class Main:
                     except StopIteration:
                         pass
 
-                    last_fetched_values = extraction_obj.update_last_successful_extract()
+                    # last_fetched_values = extraction_obj.update_last_successful_extract()
+                    last_fetched_values = extraction_obj.get_last_successful_extract()
+
                     logger.info(f"Last fetched values : {last_fetched_values}")
 
                     load_status = "Success"
@@ -136,29 +138,32 @@ class Main:
                         logging.info(f"Logging transaction history in the reporting table")
                         extraction_end_time = datetime.datetime.now()
 
-                        try:
+                        # try:
                             # Log transaction history
-                            final_status = {"source_table_name": table["name"],
-                                            "source": table["source"],
-                                            "source_type": table["source_type"],
+                        final_status = {"source_table_name": table["name"],
+                                        "source": table["source"],
+                                        "source_type": table["source_type"],
 
-                                            "destination_table_name": table["target_table_name"],
+                                        "destination_table_name": table["target_table_name"],
 
-                                            "extraction_status": load_status,
+                                        "extraction_status": load_status,
 
-                                            "number_of_records_from_source": number_of_records_from_source,
-                                            "number_of_records_pushed_to_destination": number_of_records_after_transformation,
+                                        "number_of_records_from_source": number_of_records_from_source,
+                                        "number_of_records_pushed_to_destination": number_of_records_after_transformation,
 
-                                            "extraction_start_time": str(extraction_start_time), 
-                                            "extraction_end_time": str(extraction_end_time),
+                                        "extraction_start_time": str(extraction_start_time),
+                                        "extraction_end_time": str(extraction_end_time),
 
-                                            "additional_info": str(additional_info),
+                                        "additional_info": str(additional_info),
 
-                                            "incremental_columns": str(incremental_columns),
-                                            "last_fetched_values": last_fetched_values}
-                            TLogger().log(**final_status)
-                        except Exception as e:
-                            logging.error("Failed to log status in the reporting table")
+                                        "incremental_columns": str(incremental_columns),
+                                        "last_fetched_values": last_fetched_values,
+                                        "total_time_in_minutes": str((extraction_end_time - extraction_start_time).total_seconds() / 60.0)
+                                        }
+
+                        TLogger().log(**final_status)
+                        # except Exception as e:
+                        #     logging.error("Failed to log status in the reporting table")
                     # ------------------------------ End Transaction Logging ------------------------------ 
                     print("#"*140)
                     logger.info(f"       Completed ETL for : {table['name']} at {extraction_start_time}       ")

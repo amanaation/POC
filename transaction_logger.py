@@ -2,20 +2,23 @@ import logging
 import os
 from google.api_core.exceptions import NotFound
 
-from db_connectors.BigQuery import BigQuery
+from connectors.BigQuery import BigQuery
 from dotenv import load_dotenv
+
 load_dotenv()
 
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-    datefmt='%Y-%m-%d:%H:%M:%S',
-    level=logging.INFO)
+                    datefmt='%Y-%m-%d:%H:%M:%S',
+                    level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class TLogger:
     """
         Transaction logger class: This class will log and get the latest 
         transaction/extraction history    
     """
+
     def __init__(self) -> None:
 
         logging_table_details = {
@@ -30,10 +33,9 @@ class TLogger:
             os.getenv('LOGGING_GCP_PROJECT_DATASET_NAME'),
             os.getenv('LOGGING_TABLE')))
 
-
-    def get_last_successfull_extract(self, table_details):
+    def get_last_successful_extract(self, table_details):
         query_job = self.bq_client.query(
-                f"""
+            f"""
                 SELECT  
                     incremental_columns, 
                     last_fetched_values
@@ -48,7 +50,7 @@ class TLogger:
                     and last_fetched_values is Not Null
                 order by extraction_start_time desc limit 1;
                 """
-            )
+        )
         results = query_job.result()
         if results._total_rows:
             for result in results:
@@ -83,4 +85,3 @@ class TLogger:
             except NotFound:
                 logger.info("Retrying logging transaction history")
                 pass
-

@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class ORACLE2BQ(Enum):
     """
         Enum class with all the dataype mappings between oracle to Bigquery
@@ -23,6 +24,7 @@ class ORACLE2BQ(Enum):
     DATE = "DATETIME"
     TIMESTAMP = "TIMESTAMP"
 
+
 class GCS2BQ(Enum):
     str = "STRING"
     float = "FLOAT64"
@@ -31,7 +33,7 @@ class GCS2BQ(Enum):
     timestamp = "TIMESTAMP"
     boolean = "BOOL"
 
-class SourceDestinationMapping(Enum):
+
+class SourceDestinationTypeMapping(Enum):
     oracle = ORACLE2BQ
-
-
+    gcs = GCS2BQ

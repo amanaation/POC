@@ -1,6 +1,6 @@
 tables:
   - name: climate
-    extract: true
+    extract: false
     source: oracle
     source_type: db  # possible values: db, files, api
     destination: bq      

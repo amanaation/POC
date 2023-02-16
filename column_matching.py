@@ -1,18 +1,20 @@
 import logging
+
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-    datefmt='%Y-%m-%d:%H:%M:%S',
-    level=logging.INFO)
+                    datefmt='%Y-%m-%d:%H:%M:%S',
+                    level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 import os
 import uuid
 import pandas as pd
-from datatypes import SourceDestinationMapping
+from datatypes import SourceDestinationTypeMapping
 from dotenv import load_dotenv
 
-
 load_dotenv()
-class ColumnMM():
+
+
+class ColumnMM:
     """
     This class is to do adaptive framework by adding new column and 
     filling empty string in deleting columns
@@ -86,7 +88,7 @@ class ColumnMM():
             --------
                 str: Data type a field should have at destination        
         """
-        datatype_mapping_obj = SourceDestinationMapping[source].value
+        datatype_mapping_obj = SourceDestinationTypeMapping[source].value
 
         destination_datatype = datatype_mapping_obj[field_source_data_type].value
         return destination_datatype
@@ -116,7 +118,8 @@ class ColumnMM():
                 logger.info(f"Following are the new fields added in the dataset: {new_fields}")
                 self.add_new_fields(self.target_table_id, new_fields)
                 logger.info(f"Adding fields {new_fields} to configuration table")
-                self.save_field_mappings(_table[new_fields], field_mappings_df["object_id"][0], field_mappings_df["system_id"][0])
+                self.save_field_mappings(_table[new_fields], field_mappings_df["object_id"][0],
+                                         field_mappings_df["system_id"][0])
                 logger.info(f"Successfully added fields {new_fields} to configuration table")
             else:
                 logger.info(f"No new fields to be added")
@@ -137,9 +140,11 @@ class ColumnMM():
 
     def delete_fields(self, deleted_fields, deleted_fields_mapping_details):
         for field in deleted_fields:
-            deleted_fields_column_id = deleted_fields_mapping_details[deleted_fields_mapping_details["column_name"] == field]["column_id"].to_list()[0]
+            deleted_fields_column_id = \
+            deleted_fields_mapping_details[deleted_fields_mapping_details["column_name"] == field][
+                "column_id"].to_list()[0]
             delete_column_in_destination_table_query = f"""alter table {self.target_table_id} drop column {field}"""
-            
+
             try:
                 logger.info(f"Dropping field {field} from destination table")
                 logger.info(delete_column_in_destination_table_query)
@@ -191,16 +196,16 @@ class ColumnMM():
         returns:
             df (core.frame.DataFrame) : dataframe with source data
         """
-        _sql_column=f"""SELECT * FROM {self.configuration_table_id} 
+        _sql_column = f"""SELECT * FROM {self.configuration_table_id} 
                         where 
                         object_name = '{self.target_table_name}'
                         and source='{self.source}'
                         and source_type = '{self.table_config_details['source_type']}'"""
 
-        df = self.execute(_sql_column,self.configuration_project_id)
+        df = self.execute(_sql_column, self.configuration_project_id)
         return df
 
-    def save_field_mappings(self,df: pd.DataFrame, object_id: str=None, system_id=None) -> None:
+    def save_field_mappings(self, df: pd.DataFrame, object_id: str = None, system_id=None) -> None:
         """
         This function will insert column metadata into config table if it is a first load
         or if its an existing mapping then add new columns to existing configuration
@@ -236,8 +241,7 @@ class ColumnMM():
 
         del info_df["index"]
 
-        info_df.to_gbq(f"{self.configuration_dataset_name}.{self.configuration_table}", self.configuration_project_id, if_exists='append')
-        
+        info_df.to_gbq(f"{self.configuration_dataset_name}.{self.configuration_table}", self.configuration_project_id,
+                       if_exists='append')
 
         logger.info("configuration column mapping table updated")
-

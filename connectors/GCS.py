@@ -6,14 +6,15 @@ import re
 import sys
 import os
 import google.api_core
+
 sys.path.append('../')
 
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-    datefmt='%Y-%m-%d:%H:%M:%S',
-    level=logging.INFO)
+                    datefmt='%Y-%m-%d:%H:%M:%S',
+                    level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from db_connectors.connectors import Connectors
+from connectors.connectors import Connectors
 from google.cloud import storage
 from google.cloud.storage.bucket import Bucket
 from io import StringIO
@@ -21,6 +22,7 @@ from dotenv import load_dotenv
 from pprint import pprint
 
 load_dotenv()
+
 
 class GCS(Connectors):
     def __init__(self, **kwargs) -> None:
@@ -34,15 +36,15 @@ class GCS(Connectors):
         else:
             self.file_path = None
 
-        self.last_successfull_extract = {}
-        
+        self.last_successful_extract = {}
+
     def get_schema(self, *args):
         table_sample_data = args[1]
 
         schema_details = {"COLUMN_NAME": [], "DATA_TYPE": []}
         for column in table_sample_data.columns:
             schema_details["COLUMN_NAME"].append(column)
-            column_type = re.findall("\'(.*?)\'",str(type(table_sample_data[column].to_list()[0])))[0]
+            column_type = re.findall("\'(.*?)\'", str(type(table_sample_data[column].to_list()[0])))[0]
 
             schema_details["DATA_TYPE"].append(column_type)
 
@@ -69,12 +71,32 @@ class GCS(Connectors):
         df.columns = columns
         return df
 
-    def read_file(self, blob):
-        logger.info(f"Reading file {blob.name} from bucket {self.bucket}")
+    def read_csv(self, file_path):
+        return pd.read_csv(file_path)
+
+    def read_xml(self, file_path):
+        return pd.read_xml(file_path)
+
+    def read_json(self, file_path):
+        return pd.read_json(file_path, lines=True)
+
+    def read_file(self, file_path):
+        logger.info(f"Reading file {file_path} from bucket {self.bucket_name}")
+
+        if file_path.endswith(".csv"):
+            df = self.read_csv(file_path)
+        elif file_path.endswith(".xml"):
+            df = self.read_xml(file_path)
+        elif file_path.endswith(".json"):
+            df = self.read_json(file_path)
+
+        return df
+
+    def read_file_as_blob(self, blob: Bucket.blob) -> pd.DataFrame:
         content = blob.download_as_string()
         content = content.decode('utf-8')
 
-        content = StringIO(content)  #tranform bytes to string here
+        content = StringIO(content)  # tranform bytes to string here
 
         datas = csv.reader(content)
         df = pd.DataFrame(datas)
@@ -91,7 +113,8 @@ class GCS(Connectors):
             logger.info("Target bucket exists")
 
     def move_blob(self, bucket_name, blob_name, destination_bucket_name, destination_blob_name):
-        """Moves a blob from one bucket to another with a new name.
+        """
+        Moves a blob from one bucket to another with a new name.
         # The ID of your GCS bucket
         # bucket_name = "your-bucket-name"
         # The ID of your GCS object
@@ -121,7 +144,8 @@ class GCS(Connectors):
         """
         destination_generation_match_precondition = 0
         blob_copy = source_bucket.copy_blob(
-            source_blob, destination_bucket, destination_blob_name, if_generation_match=destination_generation_match_precondition,
+            source_blob, destination_bucket, destination_blob_name,
+            if_generation_match=destination_generation_match_precondition,
         )
         source_bucket.delete_blob(blob_name)
 
@@ -137,46 +161,45 @@ class GCS(Connectors):
     def handle_extract_error(self, args):
         self.move_blob(self.bucket_name, args["file_name"], os.getenv("GCS_ERROR_BUCKET_NAME"), args["file_name"])
 
-    def update_last_successfull_extract(self, max_timestamp):
+    def update_last_successful_extract(self, max_timestamp):
         new_timestamp = ciso8601.parse_datetime(max_timestamp)
 
-        if "max_timestamp" not in self.last_successfull_extract:
-            self.last_successfull_extract["max_timestamp"] = str(max_timestamp)
+        if "max_timestamp" not in self.last_successful_extract:
+            self.last_successful_extract["max_timestamp"] = str(max_timestamp)
 
         else:
-            last_max_timestamp = ciso8601.parse_datetime(self.last_successfull_extract["max_timestamp"])
-            self.last_successfull_extract["max_timestamp"] = str(max(new_timestamp, last_max_timestamp))
+            last_max_timestamp = ciso8601.parse_datetime(self.last_successful_extract["max_timestamp"])
+            self.last_successful_extract["max_timestamp"] = str(max(new_timestamp, last_max_timestamp))
 
-    def extract(self, last_successfull_extract, **kwargs):
+    def extract(self, last_successful_extract, **kwargs):
 
         return_args = {"extraction_status": False, "file_name": ""}
         last_max_timestamp = ""
 
-        if last_successfull_extract:
-            self.last_successfull_extract = last_successfull_extract
+        if last_successful_extract:
+            self.last_successful_extract = last_successful_extract
 
         blobs = self.bucket.list_blobs(prefix=self.file_path)
         for blob in blobs:
 
-            blob_time_created = ciso8601.parse_datetime(str(blob.updated))
-            if "max_timestamp" in self.last_successfull_extract:
-                last_max_timestamp = ciso8601.parse_datetime(self.last_successfull_extract["max_timestamp"])
+            # try:
+            if not blob.name.endswith("/"):
+                print("file : ", blob.name)
 
-            try:
-                if (not blob.name.endswith("/") and (last_max_timestamp and blob_time_created > last_max_timestamp)) \
-                    or (not blob.name.endswith("/") and not last_max_timestamp):
-                    print(blob.name, " created at : ", blob.updated)
+                return_args["file_name"] = blob.name
+                file_path = f"gs://{self.bucket_name}/{blob.name}"
+                file_data = self.read_file(file_path)
+                file_data = self.rectify_column_names(file_data)
 
-                    return_args["file_name"] = blob.name
-                    file_data = self.read_file(blob)
-                    return_args["extraction_status"] = True
-                    self.update_last_successfull_extract(str(blob.updated))
-                    yield file_data, return_args
-            except Exception as e:
-                logger.info(f"Error occured while reading file {blob.name}")
-                logger.info(f"Moving file to error bucket ")
-                yield pd.DataFrame({"":[], "": []}), return_args
+                return_args["extraction_status"] = True
+                self.move_blob()
+                # self.update_last_successful_extract(str(blob.updated))
+                yield file_data.head(), return_args
+
+            # except Exception as e:
+            #     logger.info(f"Error occurred while reading file {blob.name}")
+            #     logger.info(f"Moving file to error bucket ")
+            #     yield pd.DataFrame({"": [], "": []}), return_args
 
     def save(self, df: pd.DataFrame) -> None:
         pass
-

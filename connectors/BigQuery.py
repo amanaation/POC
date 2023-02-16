@@ -1,20 +1,20 @@
 import logging
-import os
+import pandas as pd
 import sys
 
 sys.path.append('../')
 
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-    datefmt='%Y-%m-%d:%H:%M:%S',
-    level=logging.INFO)
+                    datefmt='%Y-%m-%d:%H:%M:%S',
+                    level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from datatypes import SourceDestinationTypeMapping
+from connectors.connectors import Connectors
 from dotenv import load_dotenv
 from google.cloud import bigquery as bq
 from google.api_core.exceptions import Conflict
-from datatypes import ORACLE2BQ
-import pandas as pd
-from db_connectors.connectors import Connectors
+
 load_dotenv()
 
 
@@ -94,32 +94,29 @@ class BigQuery(Connectors):
                 column_name = column_name.strip()
                 source_data_type = row['DATA_TYPE']
 
-                if source.lower() == "oracle":
-                    target_type_mapping = ORACLE2BQ
-                else:
-                    target_type_mapping = None
+                target_type_mapping = SourceDestinationTypeMapping[source.lower()].value
 
-                if target_type_mapping:
+                try:
                     target_data_type = target_type_mapping[source_data_type].value
-                else:
+                except:
                     target_data_type = "STRING"
 
                 field = bq.SchemaField(column_name, target_data_type)
                 schema.append(field)
 
             table = bq.Table(self.table_id, schema=schema)
-            table = self.client.create_table(table)
+            self.client.create_table(table)
             logger.info(f"Successfully created schema : {self.table_id}")
         except Conflict:
             logger.info("Schema already exists")
 
-    def get_schema(self, **kwargs)  -> None:
+    def get_schema(self, **kwargs) -> None:
         pass
 
-    def extract(self, **kwargs)  -> None:
+    def extract(self, **kwargs) -> None:
         pass
 
-    def save(self, df:pd.DataFrame) -> None:
+    def save(self, df: pd.DataFrame) -> None:
         """
             This function writes the dataframe to bigquery
 
@@ -135,4 +132,3 @@ class BigQuery(Connectors):
             df, self.table_id, job_config=self.job_config
         )
         job.result()
-
