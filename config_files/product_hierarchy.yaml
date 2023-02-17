@@ -7,8 +7,8 @@ tables:
 
     # Table Info
     source_gcs_project_id: "turing-nature-374608"
-    source_gcs_bucket_name: "activision-dev"
-    source_gcs_file_path: ""
+    source_gcs_bucket_name: "activision_demo"
+    source_gcs_file_path: "sellthru/queue/inventory/2023-02-14"
 
     # Query/Frequency info
     frequency: daily # (options: hourly, daily, weekly, monthly, yearly)

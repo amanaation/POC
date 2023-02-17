@@ -34,7 +34,7 @@ class OracleDatabaseConnection(Connectors):
             dsn=f"{connection_details['host']}:{connection_details['port']}/{connection_details['DB']}")
 
         self.cursor = self.connection.cursor()
-        self.last_successfull_extract = {}
+        self.last_successful_extract = {}
         logger.info("Connection created successfully with source")
 
     def get_connection_details(self):
@@ -218,11 +218,11 @@ class OracleDatabaseConnection(Connectors):
         print("Updating values")
         for incremental_column in incremental_columns:
             incremental_column_last_batch_fetched_value = result_df[incremental_column.upper()].max()
-            if incremental_column in self.last_successfull_extract:
-                self.last_successfull_extract[incremental_column] = max(self.last_successfull_extract[incremental_column], incremental_column_last_batch_fetched_value)
+            if incremental_column in self.last_successful_extract:
+                self.last_successful_extract[incremental_column] = max(self.last_successful_extract[incremental_column], incremental_column_last_batch_fetched_value)
             else:
-                self.last_successfull_extract[incremental_column] = incremental_column_last_batch_fetched_value
-        logger.info(f"Updated last successful extract : {self.last_successfull_extract}")
+                self.last_successful_extract[incremental_column] = incremental_column_last_batch_fetched_value
+        logger.info(f"Updated last successful extract : {self.last_successful_extract}")
 
     def extract(self, last_successfull_extract: dict, **table: dict):
         """
@@ -245,7 +245,7 @@ class OracleDatabaseConnection(Connectors):
         """
 
         if last_successfull_extract:
-            self.last_successfull_extract = last_successfull_extract
+            self.last_successful_extract = last_successfull_extract
 
         batch_size = table["batch_size"]
         query = table["query"]

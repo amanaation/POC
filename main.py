@@ -119,7 +119,6 @@ class Main:
                     except StopIteration:
                         pass
 
-                    # last_fetched_values = extraction_obj.update_last_successful_extract()
                     last_fetched_values = extraction_obj.get_last_successful_extract()
 
                     logger.info(f"Last fetched values : {last_fetched_values}")

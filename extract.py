@@ -56,9 +56,11 @@ class Extraction:
 
     def get_last_successful_extract(self):
         last_successful_extract = self.connection.last_successful_extract
-        last_successful_extract = json.dumps(last_successful_extract)
+        for value in last_successful_extract:
+            last_successful_extract[value] = str(last_successful_extract[value])
 
-        return last_successful_extract
+        if last_successful_extract:
+            return json.dumps(last_successful_extract)
 
     def extract(self):
         logger.info("Fetching last successful extract")

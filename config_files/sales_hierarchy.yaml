@@ -24,7 +24,7 @@ tables:
     # Query/Frequency info
     frequency: daily # (options: hourly, daily, weekly, monthly, yearly)
     query: "select * from climate "
-    batch_size: 10000
+    batch_size: 20000
     use_offset: true
 
     # destination_details
